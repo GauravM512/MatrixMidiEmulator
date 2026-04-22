@@ -2,6 +2,7 @@ package com.matrix.midiemulator.ui
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.util.AttributeSet
@@ -30,6 +31,9 @@ class PadGridView @JvmOverloads constructor(
 
     /** Current LED colors for each pad (indexed by MIDI note) */
     private val padColors = IntArray(128) { LedPalette.OFF_COLOR }
+
+    /** Edge backlight colors from touchbar segments (0-15) */
+    private val edgeColors = IntArray(NoteMap.TOUCHBAR_COUNT) { LedPalette.OFF_COLOR }
 
     /** Whether each pad is currently pressed */
     private val padPressed = BooleanArray(128) { false }
@@ -84,6 +88,8 @@ class PadGridView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
+        drawEdgeBacklight(canvas)
+
         for (row in 0 until GRID_ROWS) {
             for (col in 0 until GRID_COLS) {
                 val note = NoteMap.noteForPad(col, row)
@@ -108,6 +114,89 @@ class PadGridView @JvmOverloads constructor(
                 }
             }
         }
+    }
+
+    private fun drawEdgeBacklight(canvas: Canvas) {
+        val edgeBand = gap
+        val leftMost = gap
+        val rightMost = leftMost + GRID_COLS * cellWidth + (GRID_COLS - 1) * gap
+
+        // Side mapping from touchbar notes:
+        // Right: 100..107, bottom -> top
+        // Top: 100..107, left -> right
+        // Left: 108..115, bottom -> top
+        // Bottom: 108..115, left -> right
+        for (i in 0 until GRID_COLS) {
+            val cellLeft = gap + i * (cellWidth + gap)
+            val cellRight = cellLeft + cellWidth
+
+            val topRect = RectF(cellLeft, 0f, cellRight, edgeBand)
+            drawGlowRect(canvas, topRect, edgeColors[i], horizontal = true)
+
+            val bottomRect = RectF(cellLeft, height - edgeBand, cellRight, height.toFloat())
+            drawGlowRect(canvas, bottomRect, edgeColors[GRID_ROWS + i], horizontal = true)
+        }
+
+        for (visualRow in 0 until GRID_ROWS) {
+            val cellTop = gap + visualRow * (cellHeight + gap)
+            val cellBottom = cellTop + cellHeight
+            val bottomToTopIndex = GRID_ROWS - 1 - visualRow
+
+            val rightRect = RectF(rightMost, cellTop, width.toFloat(), cellBottom)
+            drawGlowRect(canvas, rightRect, edgeColors[bottomToTopIndex], horizontal = false)
+
+            val leftRect = RectF(0f, cellTop, leftMost, cellBottom)
+            drawGlowRect(canvas, leftRect, edgeColors[GRID_ROWS + bottomToTopIndex], horizontal = false)
+        }
+    }
+
+    private fun drawGlowRect(canvas: Canvas, rect: RectF, color: Int, horizontal: Boolean) {
+        if (color == LedPalette.OFF_COLOR) return
+
+        val d = resources.displayMetrics.density
+        val r = 10f * d
+
+        // Stronger backlit bloom with soft falloff, closer to a neon edge aura.
+        val spreadOuter = 24f * d
+        val outerRect = if (horizontal) {
+            RectF(rect.left - 8f * d, rect.top - spreadOuter, rect.right + 8f * d, rect.bottom + spreadOuter)
+        } else {
+            RectF(rect.left - spreadOuter, rect.top - 8f * d, rect.right + spreadOuter, rect.bottom + 8f * d)
+        }
+        paint.style = Paint.Style.FILL
+        paint.color = withAlpha(color, 18)
+        canvas.drawRoundRect(outerRect, r + 14f * d, r + 14f * d, paint)
+
+        val spreadMid = 15f * d
+        val midRect = if (horizontal) {
+            RectF(rect.left - 5f * d, rect.top - spreadMid, rect.right + 5f * d, rect.bottom + spreadMid)
+        } else {
+            RectF(rect.left - spreadMid, rect.top - 5f * d, rect.right + spreadMid, rect.bottom + 5f * d)
+        }
+        paint.color = withAlpha(color, 36)
+        canvas.drawRoundRect(midRect, r + 9f * d, r + 9f * d, paint)
+
+        val spreadInner = 8f * d
+        val innerRect = if (horizontal) {
+            RectF(rect.left - 2f * d, rect.top - spreadInner, rect.right + 2f * d, rect.bottom + spreadInner)
+        } else {
+            RectF(rect.left - spreadInner, rect.top - 2f * d, rect.right + spreadInner, rect.bottom + 2f * d)
+        }
+        paint.color = withAlpha(color, 68)
+        canvas.drawRoundRect(innerRect, r + 4f * d, r + 4f * d, paint)
+
+        paint.style = Paint.Style.FILL
+        paint.color = withAlpha(color, 132)
+        canvas.drawRoundRect(rect, r, r, paint)
+    }
+
+    private fun withAlpha(color: Int, alpha: Int): Int {
+        return Color.argb(
+            alpha.coerceIn(0, 255),
+            Color.red(color),
+            Color.green(color),
+            Color.blue(color)
+        )
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -255,10 +344,21 @@ class PadGridView @JvmOverloads constructor(
     }
 
     /**
+     * Set edge backlight color for touchbar segment index (0-15).
+     */
+    fun setEdgeSegmentColor(index: Int, color: Int) {
+        if (index in 0 until NoteMap.TOUCHBAR_COUNT) {
+            edgeColors[index] = color
+            invalidate()
+        }
+    }
+
+    /**
      * Clear all pad colors.
      */
     fun clearAll() {
         padColors.fill(LedPalette.OFF_COLOR)
+        edgeColors.fill(LedPalette.OFF_COLOR)
         invalidate()
     }
 }

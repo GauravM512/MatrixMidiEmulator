@@ -2,6 +2,7 @@ package com.matrix.midiemulator.ui
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.util.AttributeSet
@@ -45,6 +46,9 @@ class TouchbarView @JvmOverloads constructor(
     private val navSize = 28f * density
     private val navGap = 8f * density
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
+    private val segmentBaseColor = 0xFF303236.toInt()
+    private val segmentBaseHighlight = 0xFF4A4D53.toInt()
+    private val segmentBaseShadow = 0xFF202226.toInt()
 
     private var selectedPage = 8
     private var visibleStartIndex = 0
@@ -92,9 +96,46 @@ class TouchbarView @JvmOverloads constructor(
 
             segmentRect.set(left, top, right, bottom)
 
-            paint.color = segmentColors[segmentIndex]
+            val segmentColor = segmentColors[segmentIndex]
+            drawBacklitGlow(canvas, segmentRect, segmentColor)
+
+            paint.color = segmentBaseColor
             paint.style = Paint.Style.FILL
             canvas.drawRoundRect(segmentRect, radius, radius, paint)
+
+            paint.color = segmentBaseHighlight
+            canvas.drawRoundRect(
+                segmentRect.left,
+                segmentRect.top,
+                segmentRect.right,
+                segmentRect.top + 1.2f * density,
+                radius,
+                radius,
+                paint
+            )
+            paint.color = segmentBaseShadow
+            canvas.drawRoundRect(
+                segmentRect.left,
+                segmentRect.bottom - 1.2f * density,
+                segmentRect.right,
+                segmentRect.bottom,
+                radius,
+                radius,
+                paint
+            )
+
+            if (segmentColor != LedPalette.OFF_COLOR) {
+                paint.color = withAlpha(segmentColor, 56)
+                canvas.drawRoundRect(
+                    segmentRect.left + 2f * density,
+                    segmentRect.top + 2f * density,
+                    segmentRect.right - 2f * density,
+                    segmentRect.bottom - 2f * density,
+                    radius,
+                    radius,
+                    paint
+                )
+            }
 
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = 1f * density
@@ -320,6 +361,42 @@ class TouchbarView @JvmOverloads constructor(
         paint.textSize = 18f * density
         val textY = rect.centerY() - (paint.descent() + paint.ascent()) / 2f
         canvas.drawText(symbol.toString(), rect.centerX(), textY, paint)
+    }
+
+    private fun drawBacklitGlow(canvas: Canvas, rect: RectF, color: Int) {
+        if (color == LedPalette.OFF_COLOR) return
+
+        paint.style = Paint.Style.FILL
+        paint.color = withAlpha(color, 36)
+        canvas.drawRoundRect(
+            rect.left - 6f * density,
+            rect.top - 6f * density,
+            rect.right + 6f * density,
+            rect.bottom + 6f * density,
+            radius + 6f * density,
+            radius + 6f * density,
+            paint
+        )
+
+        paint.color = withAlpha(color, 62)
+        canvas.drawRoundRect(
+            rect.left - 3f * density,
+            rect.top - 3f * density,
+            rect.right + 3f * density,
+            rect.bottom + 3f * density,
+            radius + 3f * density,
+            radius + 3f * density,
+            paint
+        )
+    }
+
+    private fun withAlpha(color: Int, alpha: Int): Int {
+        return Color.argb(
+            alpha.coerceIn(0, 255),
+            Color.red(color),
+            Color.green(color),
+            Color.blue(color)
+        )
     }
 
     private fun pressureToVelocity(pressure: Float): Int {
