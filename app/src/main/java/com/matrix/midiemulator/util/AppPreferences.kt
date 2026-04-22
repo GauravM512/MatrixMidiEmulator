@@ -5,6 +5,7 @@ import android.content.Context
 object AppPreferences {
     private const val PREFS_NAME = "matrix_midi_emulator_prefs"
     private const val KEY_SHOW_FN_BUTTON = "show_fn_button"
+    private const val KEY_SHOW_CONNECTION_STATUS = "show_connection_status"
     private const val KEY_SHOW_TITLE = "show_title"
     private const val KEY_SELECTED_PAGE = "selected_page"
 
@@ -32,5 +33,13 @@ object AppPreferences {
 
     fun setSelectedPage(context: Context, page: Int) {
         prefs(context).edit().putInt(KEY_SELECTED_PAGE, page.coerceIn(1, 16)).apply()
+    }
+    
+    fun isConnectionStatusVisible(context: Context): Boolean {
+        return prefs(context).getBoolean(KEY_SHOW_CONNECTION_STATUS, true)
+    }
+
+    fun setConnectionStatusVisible(context: Context, visible: Boolean) {
+        prefs(context).edit().putBoolean(KEY_SHOW_CONNECTION_STATUS, visible).apply()
     }
 }

@@ -38,7 +38,7 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
     private lateinit var fnButtonContainer: View
     private lateinit var fnButton: TextView
     private lateinit var deviceNameText: TextView
-    private lateinit var settingsButton: TextView
+    private lateinit var settingsButton: View
 
     private var isConnected = false
     private var isFnPressed = false
@@ -140,6 +140,9 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
         if (::touchbar.isInitialized) {
             touchbar.setSelectedPage(AppPreferences.getSelectedPage(this))
         }
+        val showStatus = AppPreferences.isConnectionStatusVisible(this)
+        statusText.visibility = if (showStatus) View.VISIBLE else View.GONE
+        statusIndicator.visibility = if (showStatus) View.VISIBLE else View.GONE
     }
 
     private fun setupPadGrid() {
@@ -209,37 +212,10 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
     }
 
     private fun checkMidiConnection() {
-        val midiMgr = getSystemService(MIDI_SERVICE) as? MidiManager
-        if (midiMgr != null) {
-            // Check if our MIDI device is already available
-            val devices = midiMgr.devices
-            for (device in devices) {
-                if (device.properties.getString(MidiDeviceInfo.PROPERTY_NAME) == "Matrix Emulator") {
-                    onConnected()
-                    return
-                }
-            }
-
-            // Register for device connection callback
-            midiMgr.registerDeviceCallback(object : MidiManager.DeviceCallback() {
-                override fun onDeviceAdded(info: MidiDeviceInfo) {
-                    if (info.properties.getString(MidiDeviceInfo.PROPERTY_NAME) == "Matrix Emulator") {
-                        mainHandler.post { onConnected() }
-                    }
-                }
-
-                override fun onDeviceRemoved(info: MidiDeviceInfo) {
-                    if (info.properties.getString(MidiDeviceInfo.PROPERTY_NAME) == "Matrix Emulator") {
-                        mainHandler.post { onDisconnected() }
-                    }
-                }
-            }, mainHandler)
-        }
-
-        // Also check via service
-        val serviceInstance = MatrixMidiDeviceService.instance
+        // The UI's connection status will now primarily reflect the UsbMidiBridge's connection
+        // to an external MIDI device.
         val bridgeConnected = usbBridge?.canSend() == true || usbBridge?.canReceive() == true
-        if (serviceInstance?.isConnectedToHost() == true || bridgeConnected) {
+        if (bridgeConnected) {
             onConnected()
         } else {
             onDisconnected()
@@ -248,13 +224,11 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
 
     private fun onConnected() {
         isConnected = true
-        statusText.text = getString(R.string.status_connected)
         statusIndicator.setBackgroundResource(R.drawable.circle_green)
     }
 
     private fun onDisconnected() {
         isConnected = false
-        statusText.text = getString(R.string.status_disconnected)
         statusIndicator.setBackgroundResource(R.drawable.circle_red)
     }
 

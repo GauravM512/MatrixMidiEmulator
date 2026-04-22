@@ -8,5 +8,6 @@
     <string name="setting_hide_fn">Hide FN key</string>
     <string name="setting_hide_title">Hide MYSTRIX title</string>
     <string name="setting_appearance">Appearance</string>
+    <string name="setting_show_connection_status">Show Connection Status</string>
     <string name="setting_pages">Pages</string>
 </resources>

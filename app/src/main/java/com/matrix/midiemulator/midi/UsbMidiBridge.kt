@@ -500,7 +500,7 @@ class UsbMidiBridge(context: Context) {
         val name = safe(info.properties.getString(MidiDeviceInfo.PROPERTY_NAME))
 
         return manufacturer.equals("203 Systems", ignoreCase = true) &&
-            (product.equals("Mystrix", ignoreCase = true) || name.equals("Matrix Emulator", ignoreCase = true))
+            (product.equals("Mystrix", ignoreCase = true) || name.equals("Mystrix Emulator", ignoreCase = true))
     }
 
     private fun safe(s: String?): String = s ?: ""

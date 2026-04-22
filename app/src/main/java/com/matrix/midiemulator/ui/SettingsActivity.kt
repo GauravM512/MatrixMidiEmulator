@@ -18,15 +18,21 @@ class SettingsActivity : AppCompatActivity() {
 
         val hideFnSwitch = findViewById<SwitchMaterial>(R.id.hideFnSwitch)
         val hideTitleSwitch = findViewById<SwitchMaterial>(R.id.hideTitleSwitch)
+        val showConnectionStatusSwitch = findViewById<SwitchMaterial>(R.id.showConnectionStatusSwitch)
 
         hideFnSwitch.isChecked = !AppPreferences.isFnVisible(this)
         hideTitleSwitch.isChecked = !AppPreferences.isTitleVisible(this)
+        showConnectionStatusSwitch.isChecked = AppPreferences.isConnectionStatusVisible(this)
 
         hideFnSwitch.setOnCheckedChangeListener { _, isChecked ->
             AppPreferences.setFnVisible(this, !isChecked)
         }
         hideTitleSwitch.setOnCheckedChangeListener { _, isChecked ->
             AppPreferences.setTitleVisible(this, !isChecked)
+        }
+        
+        showConnectionStatusSwitch.setOnCheckedChangeListener { _, isChecked ->
+            AppPreferences.setConnectionStatusVisible(this, isChecked)
         }
     }
 

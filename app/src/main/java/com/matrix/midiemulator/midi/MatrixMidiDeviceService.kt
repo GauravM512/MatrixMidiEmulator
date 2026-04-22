@@ -8,8 +8,8 @@ import android.util.Log
  * Android MIDI Device Service that makes this app appear as a USB MIDI peripheral.
  *
  * When the user connects the phone to a PC via USB and selects "MIDI" mode,
- * Android creates a virtual MIDI device backed by this service. The PC sees
- * the device as "Matrix Emulator" with 1 input port and 1 output port.
+ * Android creates a virtual MIDI device backed by this service. The PC sees the device as
+ * "Mystrix Emulator" with 1 input port and 1 output port.
  *
  * - Input port 0 (from PC's perspective = our output): PC sends LED data here
  * - Output port 0 (from PC's perspective = our input): We send key data here
