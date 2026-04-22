@@ -284,9 +284,9 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
         }
     }
 
-    override fun onTouchbarColorChange(index: Int, color: Int) {
+    override fun onEdgeColorChange(note: Int, color: Int) {
         mainHandler.post {
-            padGrid.setEdgeSegmentColor(index, color)
+            padGrid.setEdgeSegmentColor(note, color)
         }
     }
 

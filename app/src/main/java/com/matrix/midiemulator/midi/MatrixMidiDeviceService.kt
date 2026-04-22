@@ -32,8 +32,8 @@ class MatrixMidiDeviceService : MidiDeviceService() {
             ledListener?.onPadColorChange(note, color)
         }
 
-        override fun onTouchbarColorChange(index: Int, color: Int) {
-            ledListener?.onTouchbarColorChange(index, color)
+        override fun onEdgeColorChange(note: Int, color: Int) {
+            ledListener?.onEdgeColorChange(note, color)
         }
 
         override fun onClearAll() {

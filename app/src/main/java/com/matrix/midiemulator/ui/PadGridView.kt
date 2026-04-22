@@ -27,13 +27,14 @@ class PadGridView @JvmOverloads constructor(
         private const val GRID_ROWS = NoteMap.GRID_ROWS
         private const val GRID_COLS = NoteMap.GRID_COLS
         private const val PAD_GAP = 4f // dp gap between pads
+        private const val EDGE_SEGMENT_COUNT = 32 // 8 segments per side * 4 sides
     }
 
     /** Current LED colors for each pad (indexed by MIDI note) */
     private val padColors = IntArray(128) { LedPalette.OFF_COLOR }
 
-    /** Edge backlight colors from touchbar segments (0-15) */
-    private val edgeColors = IntArray(NoteMap.TOUCHBAR_COUNT) { LedPalette.OFF_COLOR }
+    /** Edge backlight colors for the 32 edge segments */
+    private val edgeColors = IntArray(EDGE_SEGMENT_COUNT) { LedPalette.OFF_COLOR }
 
     /** Whether each pad is currently pressed */
     private val padPressed = BooleanArray(128) { false }
@@ -121,42 +122,58 @@ class PadGridView @JvmOverloads constructor(
         val leftMost = gap
         val rightMost = leftMost + GRID_COLS * cellWidth + (GRID_COLS - 1) * gap
 
-        // Side mapping from touchbar notes:
-        // Right: 100..107, bottom -> top
-        // Top: 100..107, left -> right
-        // Left: 108..115, bottom -> top
-        // Bottom: 108..115, left -> right
+        // Top: notes 28-35, left -> right (indices 0-7 in edgeColors)
         for (i in 0 until GRID_COLS) {
             val cellLeft = gap + i * (cellWidth + gap)
             val cellRight = cellLeft + cellWidth
 
             val topRect = RectF(cellLeft, 0f, cellRight, edgeBand)
-            drawGlowRect(canvas, topRect, edgeColors[i], horizontal = true)
-
-            val bottomRect = RectF(cellLeft, height - edgeBand, cellRight, height.toFloat())
-            drawGlowRect(canvas, bottomRect, edgeColors[GRID_ROWS + i], horizontal = true)
+            drawGlowRect(canvas, topRect, edgeColors[i], horizontal = true) // edgeColors[0] to edgeColors[7]
         }
 
+        // Bottom: notes 116-123, right -> left (indices 16-23 in edgeColors)
+        for (i in 0 until GRID_COLS) {
+            val cellLeft = gap + i * (cellWidth + gap)
+            val cellRight = cellLeft + cellWidth
+            val bottomRect = RectF(cellLeft, height - edgeBand, cellRight, height.toFloat())
+            // Visual segment i (0=left, 7=right) corresponds to edgeColors[23 - i]
+            drawGlowRect(canvas, bottomRect, edgeColors[23 - i], horizontal = true) // edgeColors[23] to edgeColors[16]
+        }
+
+        // Right: notes 100-107, top -> bottom (indices 8-15 in edgeColors)
         for (visualRow in 0 until GRID_ROWS) {
             val cellTop = gap + visualRow * (cellHeight + gap)
             val cellBottom = cellTop + cellHeight
-            val bottomToTopIndex = GRID_ROWS - 1 - visualRow
 
             val rightRect = RectF(rightMost, cellTop, width.toFloat(), cellBottom)
-            drawGlowRect(canvas, rightRect, edgeColors[bottomToTopIndex], horizontal = false)
+            // Visual segment visualRow (0=top, 7=bottom) corresponds to edgeColors[visualRow + 8]
+            drawGlowRect(canvas, rightRect, edgeColors[visualRow + 8], horizontal = false) // edgeColors[8] to edgeColors[15]
+        }
 
+        // Left: notes 108-115, bottom -> top (indices 24-31 in edgeColors)
+        for (visualRow in 0 until GRID_ROWS) {
+            val cellTop = gap + visualRow * (cellHeight + gap)
+            val cellBottom = cellTop + cellHeight
             val leftRect = RectF(0f, cellTop, leftMost, cellBottom)
-            drawGlowRect(canvas, leftRect, edgeColors[GRID_ROWS + bottomToTopIndex], horizontal = false)
+            // Visual segment visualRow (0=top, 7=bottom) corresponds to edgeColors[31 - visualRow]
+            drawGlowRect(canvas, leftRect, edgeColors[31 - visualRow], horizontal = false) // edgeColors[31] to edgeColors[24]
         }
     }
 
     private fun drawGlowRect(canvas: Canvas, rect: RectF, color: Int, horizontal: Boolean) {
         if (color == LedPalette.OFF_COLOR) return
 
-        val d = resources.displayMetrics.density
-        val r = 10f * d
+        val d = resources.displayMetrics.density // Cache density
+        val r = 10f * d // Base radius
 
         // Stronger backlit bloom with soft falloff, closer to a neon edge aura.
+        // These values are relative to the base radius and density.
+        // The spread values and radius additions create the layered glow effect.
+        // The alpha values are chosen to create a soft falloff.
+        // The offsets (e.g., -8f * d) are to extend the glow beyond the rect boundaries.
+        // The radius additions (e.g., r + 14f * d) ensure rounded corners for the glow layers.
+
+        // Outermost glow layer
         val spreadOuter = 24f * d
         val outerRect = if (horizontal) {
             RectF(rect.left - 8f * d, rect.top - spreadOuter, rect.right + 8f * d, rect.bottom + spreadOuter)
@@ -167,6 +184,7 @@ class PadGridView @JvmOverloads constructor(
         paint.color = withAlpha(color, 18)
         canvas.drawRoundRect(outerRect, r + 14f * d, r + 14f * d, paint)
 
+        // Middle glow layer
         val spreadMid = 15f * d
         val midRect = if (horizontal) {
             RectF(rect.left - 5f * d, rect.top - spreadMid, rect.right + 5f * d, rect.bottom + spreadMid)
@@ -176,6 +194,7 @@ class PadGridView @JvmOverloads constructor(
         paint.color = withAlpha(color, 36)
         canvas.drawRoundRect(midRect, r + 9f * d, r + 9f * d, paint)
 
+        // Inner glow layer
         val spreadInner = 8f * d
         val innerRect = if (horizontal) {
             RectF(rect.left - 2f * d, rect.top - spreadInner, rect.right + 2f * d, rect.bottom + spreadInner)
@@ -185,6 +204,7 @@ class PadGridView @JvmOverloads constructor(
         paint.color = withAlpha(color, 68)
         canvas.drawRoundRect(innerRect, r + 4f * d, r + 4f * d, paint)
 
+        // Innermost, most opaque layer
         paint.style = Paint.Style.FILL
         paint.color = withAlpha(color, 132)
         canvas.drawRoundRect(rect, r, r, paint)
@@ -334,9 +354,9 @@ class PadGridView @JvmOverloads constructor(
     }
 
     /**
-     * Set the LED color for a pad by MIDI note number.
+     * Set the LED color for an edge segment by MIDI note number.
      */
-    fun setPadColor(note: Int, color: Int) {
+    fun setPadColor(note: Int, color: Int) { // This is for the 8x8 grid pads
         if (note in 36..99) {
             padColors[note] = color
             invalidate()
@@ -344,12 +364,23 @@ class PadGridView @JvmOverloads constructor(
     }
 
     /**
-     * Set edge backlight color for touchbar segment index (0-15).
+     * Set edge backlight color for a given MIDI note.
      */
-    fun setEdgeSegmentColor(index: Int, color: Int) {
-        if (index in 0 until NoteMap.TOUCHBAR_COUNT) {
+    fun setEdgeSegmentColor(note: Int, color: Int) {
+        val index = mapNoteToEdgeSegmentIndex(note)
+        if (index != -1) {
             edgeColors[index] = color
             invalidate()
+        }
+    }
+
+    private fun mapNoteToEdgeSegmentIndex(note: Int): Int {
+        return when (note) {
+            in 28..35 -> note - 28 // Top edge, 0-7
+            in 100..107 -> note - 100 + 8 // Right edge, 8-15
+            in 116..123 -> 123 - note + 16 // Bottom edge (reversed), 16-23
+            in 108..115 -> 115 - note + 24 // Left edge (reversed), 24-31
+            else -> -1 // Not an edge note
         }
     }
 

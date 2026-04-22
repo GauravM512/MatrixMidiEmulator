@@ -41,8 +41,8 @@ class MidiReceiver(
         /** Called when a pad LED color changes (note 36-99) */
         fun onPadColorChange(note: Int, color: Int)
 
-        /** Called when a touchbar LED color changes (note 100-115) */
-        fun onTouchbarColorChange(index: Int, color: Int)
+        /** Called when an edge LED color changes (notes 28-35, 100-107, 108-115, 116-123) */
+        fun onEdgeColorChange(note: Int, color: Int)
 
         /** Called when all LEDs should be cleared */
         fun onClearAll()
@@ -165,10 +165,19 @@ class MidiReceiver(
             return
         }
 
-        val tbIndex = NoteMap.touchbarForNote(note)
-        if (tbIndex != null) {
-            listener.onTouchbarColorChange(tbIndex, color)
+        // Check if it's an edge note
+        if (isEdgeNote(note)) {
+            listener.onEdgeColorChange(note, color)
+            return
         }
+    }
+
+    /** Helper to check if a note corresponds to an edge segment. */
+    private fun isEdgeNote(note: Int): Boolean {
+        return (note in 28..35 || // Top edge
+                note in 100..107 || // Right edge
+                note in 108..115 || // Left edge
+                note in 116..123)    // Bottom edge
     }
 
     private fun handleNoteOff(note: Int) {
@@ -178,9 +187,8 @@ class MidiReceiver(
             return
         }
 
-        val tbIndex = NoteMap.touchbarForNote(note)
-        if (tbIndex != null) {
-            listener.onTouchbarColorChange(tbIndex, LedPalette.OFF_COLOR)
+        if (isEdgeNote(note)) {
+            listener.onEdgeColorChange(note, LedPalette.OFF_COLOR)
         }
     }
 
@@ -221,9 +229,9 @@ class MidiReceiver(
             if (padPos != null) {
                 listener.onPadColorChange(note, color)
             } else {
-                val tbIndex = NoteMap.touchbarForNote(note)
-                if (tbIndex != null) {
-                    listener.onTouchbarColorChange(tbIndex, color)
+                // Check if it's an edge note
+                if (isEdgeNote(note)) {
+                    listener.onEdgeColorChange(note, color)
                 }
             }
 
@@ -252,9 +260,9 @@ class MidiReceiver(
             if (padPos != null) {
                 listener.onPadColorChange(note, color)
             } else {
-                val tbIndex = NoteMap.touchbarForNote(note)
-                if (tbIndex != null) {
-                    listener.onTouchbarColorChange(tbIndex, color)
+                // Check if it's an edge note
+                if (isEdgeNote(note)) {
+                    listener.onEdgeColorChange(note, color)
                 }
             }
 
