@@ -12,7 +12,7 @@ import kotlin.math.roundToInt
  */
 object LedPalette {
 
-    const val OFF_COLOR = 0xFF1A1A2E.toInt()
+    const val OFF_COLOR = 0xFF808080.toInt()
 
     /** 128 colors as RGB int values */
     val colors: IntArray = IntArray(128) { index ->

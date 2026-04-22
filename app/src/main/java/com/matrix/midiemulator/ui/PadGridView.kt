@@ -7,6 +7,7 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import com.matrix.midiemulator.util.LedPalette
 import com.matrix.midiemulator.util.NoteMap
 import kotlin.math.min
 
@@ -28,13 +29,19 @@ class PadGridView @JvmOverloads constructor(
     }
 
     /** Current LED colors for each pad (indexed by MIDI note) */
-    private val padColors = IntArray(128) { 0xFF1A1A2E.toInt() }
+    private val padColors = IntArray(128) { LedPalette.OFF_COLOR }
 
     /** Whether each pad is currently pressed */
     private val padPressed = BooleanArray(128) { false }
 
     /** Touch pressure for each pad (for aftertouch) */
     private val padPressure = FloatArray(128) { 0f }
+
+    /** Active note bound to each active pointer ID */
+    private val activePointerNotes = mutableMapOf<Int, Int>()
+
+    /** Number of active pointers currently pressing each note */
+    private val noteTouchCounts = IntArray(128) { 0 }
 
     private val padRect = RectF()
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -107,18 +114,28 @@ class PadGridView @JvmOverloads constructor(
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val idx = event.actionIndex
-                handleTouchDown(event.getX(idx), event.getY(idx), event.getPressure(idx))
+                handleTouchDown(
+                    event.getPointerId(idx),
+                    event.getX(idx),
+                    event.getY(idx),
+                    event.getPressure(idx)
+                )
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
                 for (i in 0 until event.pointerCount) {
-                    handleTouchMove(event.getX(i), event.getY(i), event.getPressure(i))
+                    handleTouchMove(
+                        event.getPointerId(i),
+                        event.getX(i),
+                        event.getY(i),
+                        event.getPressure(i)
+                    )
                 }
                 return true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val idx = event.actionIndex
-                handleTouchUp(event.getX(idx), event.getY(idx))
+                handleTouchUp(event.getPointerId(idx))
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
@@ -145,37 +162,55 @@ class PadGridView @JvmOverloads constructor(
         return null
     }
 
-    private fun handleTouchDown(x: Float, y: Float, pressure: Float) {
+    private fun handleTouchDown(pointerId: Int, x: Float, y: Float, pressure: Float) {
         val note = getPadForPosition(x, y) ?: return
-        padPressed[note] = true
-        padPressure[note] = pressure
-        val velocity = pressureToVelocity(pressure)
-        onPadEventListener?.onPadPress(note, velocity)
+        activePointerNotes[pointerId] = note
+        pressNote(note, pressure)
         invalidate()
     }
 
-    private fun handleTouchMove(x: Float, y: Float, pressure: Float) {
-        val note = getPadForPosition(x, y) ?: return
-        if (padPressed[note]) {
-            val newPressure = pressureToVelocity(pressure)
-            val oldPressure = pressureToVelocity(padPressure[note])
-            if (Math.abs(newPressure - oldPressure) > 2) {
-                padPressure[note] = pressure
-                onPadEventListener?.onPadAftertouch(note, newPressure)
+    private fun handleTouchMove(pointerId: Int, x: Float, y: Float, pressure: Float) {
+        val previousNote = activePointerNotes[pointerId]
+        val currentNote = getPadForPosition(x, y)
+
+        if (previousNote == currentNote) {
+            if (currentNote != null && padPressed[currentNote]) {
+                val newPressure = pressureToVelocity(pressure)
+                val oldPressure = pressureToVelocity(padPressure[currentNote])
+                if (Math.abs(newPressure - oldPressure) > 2) {
+                    padPressure[currentNote] = pressure
+                    onPadEventListener?.onPadAftertouch(currentNote, newPressure)
+                    invalidate()
+                }
             }
+            return
         }
+
+        if (previousNote != null) {
+            releaseNote(previousNote)
+        }
+
+        if (currentNote != null) {
+            activePointerNotes[pointerId] = currentNote
+            pressNote(currentNote, pressure)
+        } else {
+            activePointerNotes.remove(pointerId)
+        }
+
+        invalidate()
     }
 
-    private fun handleTouchUp(x: Float, y: Float) {
-        val note = getPadForPosition(x, y) ?: return
-        padPressed[note] = false
-        padPressure[note] = 0f
-        onPadEventListener?.onPadRelease(note)
+    private fun handleTouchUp(pointerId: Int) {
+        val note = activePointerNotes.remove(pointerId) ?: return
+        releaseNote(note)
         invalidate()
     }
 
     private fun clearAllTouches() {
-        for (note in 0..127) {
+        val notesToRelease = activePointerNotes.values.toSet()
+        activePointerNotes.clear()
+        for (note in notesToRelease) {
+            noteTouchCounts[note] = 0
             if (padPressed[note]) {
                 padPressed[note] = false
                 padPressure[note] = 0f
@@ -183,6 +218,25 @@ class PadGridView @JvmOverloads constructor(
             }
         }
         invalidate()
+    }
+
+    private fun pressNote(note: Int, pressure: Float) {
+        noteTouchCounts[note] += 1
+        padPressure[note] = pressure
+        if (!padPressed[note]) {
+            padPressed[note] = true
+            val velocity = pressureToVelocity(pressure)
+            onPadEventListener?.onPadPress(note, velocity)
+        }
+    }
+
+    private fun releaseNote(note: Int) {
+        noteTouchCounts[note] = (noteTouchCounts[note] - 1).coerceAtLeast(0)
+        if (noteTouchCounts[note] == 0 && padPressed[note]) {
+            padPressed[note] = false
+            padPressure[note] = 0f
+            onPadEventListener?.onPadRelease(note)
+        }
     }
 
     private fun pressureToVelocity(pressure: Float): Int {
@@ -204,7 +258,7 @@ class PadGridView @JvmOverloads constructor(
      * Clear all pad colors.
      */
     fun clearAll() {
-        padColors.fill(0xFF1A1A2E.toInt())
+        padColors.fill(LedPalette.OFF_COLOR)
         invalidate()
     }
 }

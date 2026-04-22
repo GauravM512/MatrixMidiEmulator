@@ -17,6 +17,7 @@ import com.matrix.midiemulator.midi.MatrixMidiDeviceService
 import com.matrix.midiemulator.midi.MidiReceiver
 import com.matrix.midiemulator.midi.UsbMidiBridge
 import com.matrix.midiemulator.util.MidiMessageBuilder
+import com.matrix.midiemulator.util.LedPalette
 import com.matrix.midiemulator.util.NoteMap
 
 /**
@@ -174,7 +175,7 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     isFnPressed = false
-                    fnButton.setBackgroundColor(0xFF1A1A2E.toInt())
+                    fnButton.setBackgroundColor(LedPalette.OFF_COLOR)
                     sendToHost(MidiMessageBuilder.fnRelease())
                     true
                 }

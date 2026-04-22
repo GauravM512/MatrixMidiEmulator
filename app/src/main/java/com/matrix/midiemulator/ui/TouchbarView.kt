@@ -7,6 +7,7 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import com.matrix.midiemulator.util.LedPalette
 import com.matrix.midiemulator.util.NoteMap
 
 /**
@@ -19,7 +20,7 @@ class TouchbarView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    private val segmentColors = IntArray(NoteMap.TOUCHBAR_COUNT) { 0xFF1A1A2E.toInt() }
+    private val segmentColors = IntArray(NoteMap.TOUCHBAR_COUNT) { LedPalette.OFF_COLOR }
     private val segmentPressed = BooleanArray(NoteMap.TOUCHBAR_COUNT) { false }
 
     private val segmentRect = RectF()
