@@ -16,6 +16,7 @@ import com.matrix.midiemulator.R
 import com.matrix.midiemulator.midi.MatrixMidiDeviceService
 import com.matrix.midiemulator.midi.MidiReceiver
 import com.matrix.midiemulator.midi.UsbMidiBridge
+import com.matrix.midiemulator.util.AppPreferences
 import com.matrix.midiemulator.util.MidiMessageBuilder
 import com.matrix.midiemulator.util.LedPalette
 import com.matrix.midiemulator.util.NoteMap
@@ -34,8 +35,10 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
     private lateinit var touchbar: TouchbarView
     private lateinit var statusText: TextView
     private lateinit var statusIndicator: View
+    private lateinit var fnButtonContainer: View
     private lateinit var fnButton: TextView
     private lateinit var deviceNameText: TextView
+    private lateinit var settingsButton: TextView
 
     private var isConnected = false
     private var isFnPressed = false
@@ -72,6 +75,8 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
         setupPadGrid()
         setupTouchbar()
         setupFnButton()
+        setupSettingsButton()
+        applyUserPreferences()
         checkMidiConnection()
         mainHandler.post(statusTicker)
     }
@@ -81,6 +86,7 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
         // Register as LED listener
         MatrixMidiDeviceService.ledListener = this
         connectUsbBridgeAsync()
+        applyUserPreferences()
         checkMidiConnection()
         mainHandler.post(statusTicker)
     }
@@ -116,8 +122,24 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
         touchbarContainer = findViewById(R.id.touchbarContainer)
         statusText = findViewById(R.id.statusText)
         statusIndicator = findViewById(R.id.statusIndicator)
+        fnButtonContainer = findViewById(R.id.fnButtonContainer)
         fnButton = findViewById(R.id.fnButton)
         deviceNameText = findViewById(R.id.deviceNameText)
+        settingsButton = findViewById(R.id.settingsButton)
+    }
+
+    private fun setupSettingsButton() {
+        settingsButton.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+    }
+
+    private fun applyUserPreferences() {
+        deviceNameText.visibility = if (AppPreferences.isTitleVisible(this)) View.VISIBLE else View.GONE
+        fnButtonContainer.visibility = if (AppPreferences.isFnVisible(this)) View.VISIBLE else View.GONE
+        if (::touchbar.isInitialized) {
+            touchbar.setSelectedPage(AppPreferences.getSelectedPage(this))
+        }
     }
 
     private fun setupPadGrid() {
@@ -148,6 +170,8 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
 
         touchbar.onTouchListener = object : TouchbarView.TouchbarEventListener {
             override fun onSegmentPress(index: Int, velocity: Int) {
+                AppPreferences.setSelectedPage(this@MainActivity, index + 1)
+                touchbar.setSelectedPage(index + 1)
                 val note = NoteMap.noteForTouchbar(index)
                 sendToHost(MidiMessageBuilder.noteOn(note, velocity))
             }
