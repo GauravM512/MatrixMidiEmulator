@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<devices>
+    <device
+        name="Matrix Emulator"
+        manufacturer="203 Systems"
+        product="Mystrix"
+        version="1.0">
+        <input-port name="Host To Device"/>
+        <output-port name="Device To Host"/>
+    </device>
+</devices>

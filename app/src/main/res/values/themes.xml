@@ -1,0 +1,13 @@
+<resources>
+    <style name="Theme.MatrixMidiEmulator" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+        <item name="colorPrimary">#1B1B2F</item>
+        <item name="colorPrimaryVariant">#162447</item>
+        <item name="colorOnPrimary">#E8E8E8</item>
+        <item name="colorSecondary">#E43F5A</item>
+        <item name="colorSecondaryVariant">#1F4068</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+        <item name="android:windowBackground">#0D0D0D</item>
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:navigationBarColor">#000000</item>
+    </style>
+</resources>
