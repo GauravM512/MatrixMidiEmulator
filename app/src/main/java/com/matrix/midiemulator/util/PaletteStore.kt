@@ -3,6 +3,7 @@ package com.matrix.midiemulator.util
 import android.content.Context
 import android.graphics.Color
 import java.io.File
+import kotlin.math.roundToInt
 
 data class PaletteSlot(
     val slotId: Int,
@@ -82,26 +83,29 @@ object PaletteStore {
 
     fun applySelectedPalette(context: Context) {
         val selectedSlot = AppPreferences.getActivePaletteSlot(context)
+        val isCustom = selectedSlot != 0
         val colors = if (selectedSlot == 0) {
             MidiConstants.PALETTE.copyOf()
         } else {
             loadSlot(context, selectedSlot - 1)?.colors ?: MidiConstants.PALETTE.copyOf()
         }
-        PaletteRuntime.setActiveColors(colors)
+        PaletteRuntime.setActiveColors(colors, isCustom)
     }
 
     fun saveAndApply(context: Context, slot: PaletteSlot) {
         saveSlot(context, slot)
         if (AppPreferences.getActivePaletteSlot(context) == slot.slotId + 1) {
-            PaletteRuntime.setActiveColors(slot.colors)
+            PaletteRuntime.setActiveColors(slot.colors, isCustom = true)
         }
     }
 
     private fun expand6bit(value: Int): Int {
-        return (value.coerceIn(0, 63) * 255f / 63f).toInt()
+        val v = value.coerceIn(0, 63)
+        return (v shl 2) + (v shr 4)
     }
 
     private fun compress8bit(value: Int): Int {
-        return (value.coerceIn(0, 255) * 63f / 255f).toInt()
+        val compressed = (value.coerceIn(0, 255) * 63f / 255f).roundToInt()
+        return if (value > 0) compressed.coerceAtLeast(1) else 0
     }
 }

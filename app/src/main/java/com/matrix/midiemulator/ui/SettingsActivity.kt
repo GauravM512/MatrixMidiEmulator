@@ -102,7 +102,7 @@ class SettingsActivity : AppCompatActivity() {
                     val palette = PaletteStore.parsePaletteText(text, slotId - 1, "Slot $slotId")
                     PaletteStore.saveAndApply(this, palette)
                     if (AppPreferences.getActivePaletteSlot(this) == slotId) {
-                        PaletteRuntime.setActiveColors(palette.colors)
+                        PaletteRuntime.setActiveColors(palette.colors, isCustom = true)
                     }
                     Toast.makeText(this, getString(R.string.setting_palette_import_success, slotId), Toast.LENGTH_SHORT).show()
                 } ?: throw IllegalStateException("Could not open file")

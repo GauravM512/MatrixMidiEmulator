@@ -15,22 +15,41 @@ android {
         versionName = "1.0"
     }
 
+
+    signingConfigs {
+        create("release") {
+            storeFile = rootProject.file("mystrix-key.jks")
+            storePassword = project.findProperty("KEYSTORE_PASSWORD") as String
+            keyAlias = project.findProperty("KEY_ALIAS") as String
+            keyPassword = project.findProperty("KEY_PASSWORD") as String
+        }
+    }
+
     buildTypes {
-        release {
+        getByName("release") {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
+
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
+
+        getByName("debug") {
+            isMinifyEnabled = false
+        }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
     kotlinOptions {
         jvmTarget = "17"
     }
+
     buildFeatures {
         viewBinding = true
     }
