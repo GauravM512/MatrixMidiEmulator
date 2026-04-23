@@ -30,14 +30,11 @@ class SettingsActivity : AppCompatActivity() {
         supportActionBar?.title = getString(R.string.settings_title)
 
         val hideFnSwitch = findViewById<SwitchMaterial>(R.id.hideFnSwitch)
-        val hideTitleSwitch = findViewById<SwitchMaterial>(R.id.hideTitleSwitch)
         val showConnectionStatusSwitch = findViewById<SwitchMaterial>(R.id.showConnectionStatusSwitch)
         val paletteSourceSpinner = findViewById<Spinner>(R.id.paletteSourceSpinner)
         val paletteImportSlotSpinner = findViewById<Spinner>(R.id.paletteImportSlotSpinner)
         val importPaletteButton = findViewById<Button>(R.id.importPaletteButton)
-
         hideFnSwitch.isChecked = !AppPreferences.isFnVisible(this)
-        hideTitleSwitch.isChecked = !AppPreferences.isTitleVisible(this)
         showConnectionStatusSwitch.isChecked = AppPreferences.isConnectionStatusVisible(this)
 
         val paletteSources = listOf(
@@ -67,9 +64,6 @@ class SettingsActivity : AppCompatActivity() {
 
         hideFnSwitch.setOnCheckedChangeListener { _, isChecked ->
             AppPreferences.setFnVisible(this, !isChecked)
-        }
-        hideTitleSwitch.setOnCheckedChangeListener { _, isChecked ->
-            AppPreferences.setTitleVisible(this, !isChecked)
         }
         
         showConnectionStatusSwitch.setOnCheckedChangeListener { _, isChecked ->
