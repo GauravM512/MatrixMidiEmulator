@@ -10,4 +10,15 @@
     <string name="setting_appearance">Appearance</string>
     <string name="setting_show_connection_status">Show Connection Status</string>
     <string name="setting_pages">Pages</string>
+    <string name="setting_palette">Palette</string>
+    <string name="setting_palette_source">Active palette source</string>
+    <string name="setting_palette_import_slot">Import target slot</string>
+    <string name="setting_palette_import_file">Import palette from file</string>
+    <string name="setting_palette_source_app_default">App Default</string>
+    <string name="setting_palette_source_slot">Slot %1$d</string>
+    <string name="setting_palette_import_success">Imported palette saved to Slot %1$d</string>
+    <string name="setting_palette_source_success">Palette source set to %1$s</string>
+    <string name="setting_palette_import_failed">Could not import palette file</string>
+    <string name="setting_palette_import_cancelled">Palette import cancelled</string>
+    <string name="setting_palette_import_hint">Select a text file that matches the Mystrix palette format.</string>
 </resources>

@@ -15,16 +15,14 @@ object LedPalette {
     const val OFF_COLOR = 0xFF808080.toInt()
 
     /** 128 colors as RGB int values */
-    val colors: IntArray = IntArray(128) { index ->
-        val rgb = MidiConstants.PALETTE[index and 0x7F]
-        0xFF000000.toInt() or rgb
-    }
+    val colors: IntArray
+        get() = PaletteRuntime.snapshot()
 
     /**
      * Get color for a palette index (0-127).
      */
     fun getColor(index: Int): Int {
-        return colors[index.coerceIn(0, 127)]
+        return PaletteRuntime.getColor(index)
     }
 
     /**

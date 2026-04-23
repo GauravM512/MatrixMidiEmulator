@@ -1,13 +1,26 @@
 package com.matrix.midiemulator.ui
 
+import android.net.Uri
 import android.os.Bundle
 import android.view.MenuItem
+import android.widget.ArrayAdapter
+import android.widget.Button
+import android.widget.Spinner
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.matrix.midiemulator.R
 import com.matrix.midiemulator.util.AppPreferences
+import com.matrix.midiemulator.util.PaletteRuntime
+import com.matrix.midiemulator.util.PaletteSlot
+import com.matrix.midiemulator.util.PaletteStore
+import java.io.BufferedReader
+import java.io.InputStreamReader
 
 class SettingsActivity : AppCompatActivity() {
+
+    private var suppressSourceChange = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -19,10 +32,38 @@ class SettingsActivity : AppCompatActivity() {
         val hideFnSwitch = findViewById<SwitchMaterial>(R.id.hideFnSwitch)
         val hideTitleSwitch = findViewById<SwitchMaterial>(R.id.hideTitleSwitch)
         val showConnectionStatusSwitch = findViewById<SwitchMaterial>(R.id.showConnectionStatusSwitch)
+        val paletteSourceSpinner = findViewById<Spinner>(R.id.paletteSourceSpinner)
+        val paletteImportSlotSpinner = findViewById<Spinner>(R.id.paletteImportSlotSpinner)
+        val importPaletteButton = findViewById<Button>(R.id.importPaletteButton)
 
         hideFnSwitch.isChecked = !AppPreferences.isFnVisible(this)
         hideTitleSwitch.isChecked = !AppPreferences.isTitleVisible(this)
         showConnectionStatusSwitch.isChecked = AppPreferences.isConnectionStatusVisible(this)
+
+        val paletteSources = listOf(
+            getString(R.string.setting_palette_source_app_default),
+            getString(R.string.setting_palette_source_slot, 1),
+            getString(R.string.setting_palette_source_slot, 2),
+            getString(R.string.setting_palette_source_slot, 3),
+            getString(R.string.setting_palette_source_slot, 4)
+        )
+        paletteSourceSpinner.adapter = ArrayAdapter(this, R.layout.spinner_item_light, paletteSources).apply {
+            setDropDownViewResource(R.layout.spinner_item_dropdown_light)
+        }
+        suppressSourceChange = true
+        paletteSourceSpinner.setSelection(AppPreferences.getActivePaletteSlot(this))
+        suppressSourceChange = false
+
+        val paletteImportSlots = listOf(
+            getString(R.string.setting_palette_source_slot, 1),
+            getString(R.string.setting_palette_source_slot, 2),
+            getString(R.string.setting_palette_source_slot, 3),
+            getString(R.string.setting_palette_source_slot, 4)
+        )
+        paletteImportSlotSpinner.adapter = ArrayAdapter(this, R.layout.spinner_item_light, paletteImportSlots).apply {
+            setDropDownViewResource(R.layout.spinner_item_dropdown_light)
+        }
+        paletteImportSlotSpinner.setSelection(AppPreferences.getPaletteImportSlot(this) - 1)
 
         hideFnSwitch.setOnCheckedChangeListener { _, isChecked ->
             AppPreferences.setFnVisible(this, !isChecked)
@@ -33,6 +74,51 @@ class SettingsActivity : AppCompatActivity() {
         
         showConnectionStatusSwitch.setOnCheckedChangeListener { _, isChecked ->
             AppPreferences.setConnectionStatusVisible(this, isChecked)
+        }
+
+        paletteSourceSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>, view: android.view.View?, position: Int, id: Long) {
+                if (suppressSourceChange) return
+                AppPreferences.setActivePaletteSlot(this@SettingsActivity, position)
+                PaletteStore.applySelectedPalette(this@SettingsActivity)
+                Toast.makeText(this@SettingsActivity, getString(R.string.setting_palette_source_success, paletteSources[position]), Toast.LENGTH_SHORT).show()
+            }
+
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>) = Unit
+        }
+
+        paletteImportSlotSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>, view: android.view.View?, position: Int, id: Long) {
+                AppPreferences.setPaletteImportSlot(this@SettingsActivity, position + 1)
+            }
+
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>) = Unit
+        }
+
+        val openPaletteFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            if (uri == null) {
+                Toast.makeText(this, getString(R.string.setting_palette_import_cancelled), Toast.LENGTH_SHORT).show()
+                return@registerForActivityResult
+            }
+
+            try {
+                contentResolver.openInputStream(uri)?.use { inputStream ->
+                    val text = BufferedReader(InputStreamReader(inputStream)).use { it.readText() }
+                    val slotId = AppPreferences.getPaletteImportSlot(this)
+                    val palette = PaletteStore.parsePaletteText(text, slotId - 1, "Slot $slotId")
+                    PaletteStore.saveAndApply(this, palette)
+                    if (AppPreferences.getActivePaletteSlot(this) == slotId) {
+                        PaletteRuntime.setActiveColors(palette.colors)
+                    }
+                    Toast.makeText(this, getString(R.string.setting_palette_import_success, slotId), Toast.LENGTH_SHORT).show()
+                } ?: throw IllegalStateException("Could not open file")
+            } catch (e: Exception) {
+                Toast.makeText(this, getString(R.string.setting_palette_import_failed), Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        importPaletteButton.setOnClickListener {
+            openPaletteFile.launch(arrayOf("text/*", "*/*"))
         }
     }
 

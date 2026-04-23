@@ -4,6 +4,7 @@ import android.media.midi.MidiReceiver as AndroidMidiReceiver
 import android.util.Log
 import com.matrix.midiemulator.util.LedPalette
 import com.matrix.midiemulator.util.NoteMap
+import com.matrix.midiemulator.util.PaletteRuntime
 
 /**
  * Parses incoming MIDI messages from the host (PC) and dispatches LED color updates.
@@ -43,6 +44,9 @@ class MidiReceiver(
 
         /** Called when an edge LED color changes (notes 28-35, 100-107, 108-115, 116-123) */
         fun onEdgeColorChange(note: Int, color: Int)
+
+        /** Called when a custom palette upload finishes. */
+        fun onPaletteUpdate(slotId: Int, name: String, colors: IntArray)
 
         /** Called when all LEDs should be cleared */
         fun onClearAll()
@@ -200,6 +204,11 @@ class MidiReceiver(
     private fun processSysEx(data: ByteArray) {
         if (data.size < 3) return
 
+        if (data.size > 5 && data[1] == 0x00.toByte() && data[2] == 0x02.toByte() && data[3] == 0x03.toByte()) {
+            processMatrixSysEx(data)
+            return
+        }
+
         val manufacturer = data[1].toInt() and 0xFF
 
         when (manufacturer) {
@@ -267,6 +276,127 @@ class MidiReceiver(
             }
 
             i += 4
+        }
+    }
+
+    private val paletteUploads = mutableMapOf<Int, IntArray>()
+    private var uploadSessionSlot: Int? = null
+
+    private fun processMatrixSysEx(data: ByteArray) {
+        if (data.size < 8) return
+        if (data[4] != 0x4D.toByte() || data[5] != 0x58.toByte()) return
+
+        if (data[6] != 0x41.toByte()) return
+
+        when (data[7]) {
+            0x7B.toByte() -> {
+                paletteUploads.clear()
+                uploadSessionSlot = null
+                // Expected format for 0x7B (Uploading Start):
+                // 1. F0 00 02 03 4D 58 41 7B [slot_id] F7 (total size 10, explicit slot ID)
+                // 2. F0 00 02 03 4D 58 41 7B F7 (total size 9, implies default slot 0)
+                if (data.size == 10 && data[9] == SYSEX_END) {
+                    val slotId = data[8].toInt() and 0xFF
+                    if (slotId in 0..3) {
+                        uploadSessionSlot = slotId
+                    }
+                } else if (data.size == 9 && data[8] == SYSEX_END) {
+                    // If the 0x7B message does not contain an explicit slot ID,
+                    // it implies the upload is for the default/current slot, which is typically 0.
+                    // This allows subsequent 0x3D messages in "Format C" to target slot 0
+                    // if they are structured without explicit PaletteIDs.
+                    val slotId = 0 // Assume default slot 0
+                    if (slotId in 0..3) {
+                        uploadSessionSlot = slotId
+                    }
+                }
+            }
+            0x3D.toByte() -> {
+                val payloadStart = 8
+                val payloadEnd = data.size - 1 // exclude F7
+                val payloadLength = payloadEnd - payloadStart
+                if (payloadLength <= 0) return
+
+                // Prioritize Format B: [PaletteID] + [Index R G B] repeated
+                // This format matches the user's provided SysEx message structure, where a single PaletteID
+                // is followed by multiple color entries (Index R G B).
+                if (payloadLength >= 1 && (payloadLength - 1) % 4 == 0) {
+                    val slotId = data[payloadStart].toInt() and 0xFF // This is the single PaletteID for the batch
+                    if (slotId in 0..3) {
+                        // No need to set uploadSessionSlot here, as this message explicitly contains the slotId.
+                        // uploadSessionSlot is for Format C, where the slotId is implicit.
+                        var i = payloadStart + 1 // Start parsing colors from the next byte
+                        while (i + 3 < payloadEnd) {
+                            val index = data[i].toInt() and 0xFF
+                            val r6 = data[i + 1].toInt() and 0x3F
+                            val g6 = data[i + 2].toInt() and 0x3F
+                            val b6 = data[i + 3].toInt() and 0x3F
+                            if (index in 0..127) {
+                                val colors = paletteUploads.getOrPut(slotId) {
+                                    IntArray(128) { LedPalette.OFF_COLOR }
+                                }
+                                colors[index] = LedPalette.sixBitToColor(r6, g6, b6)
+                            }
+                            i += 4
+                        }
+                        return
+                    }
+                }
+
+                // Format A (spec): [PaletteID Index R G B] repeated
+                // This format is less common for batch uploads where a single PaletteID applies
+                // to the entire batch. It's checked after Format B to resolve ambiguity,
+                // as Format B is the more specific match for the provided SysEx.
+                // Format A (spec): [PaletteID Index R G B] repeated
+                if (payloadLength % 5 == 0) {
+                    var i = payloadStart
+                    while (i + 4 < payloadEnd) {
+                        val slotId = data[i].toInt() and 0xFF
+                        val index = data[i + 1].toInt() and 0xFF
+                        val r6 = data[i + 2].toInt() and 0x3F
+                        val g6 = data[i + 3].toInt() and 0x3F
+                        val b6 = data[i + 4].toInt() and 0x3F
+
+                        if (slotId in 0..3 && index in 0..127) {
+                            val colors = paletteUploads.getOrPut(slotId) { // Initialize new palettes with OFF_COLOR
+                                IntArray(128) { LedPalette.OFF_COLOR }
+                            }
+                            colors[index] = LedPalette.sixBitToColor(r6, g6, b6)
+                        }
+                        i += 5
+                    }
+                    return
+                }
+
+                // Format C: [Index R G B] repeated with session slot from 0x7B
+                val sessionSlot = uploadSessionSlot // Renamed to avoid shadowing
+                if (sessionSlot != null && payloadLength % 4 == 0) {
+                    var i = payloadStart
+                    while (i + 3 < payloadEnd) {
+                        val index = data[i].toInt() and 0xFF
+                        val r6 = data[i + 1].toInt() and 0x3F
+                        val g6 = data[i + 2].toInt() and 0x3F
+                        val b6 = data[i + 3].toInt() and 0x3F
+                        if (index in 0..127) {
+                            val colors = paletteUploads.getOrPut(sessionSlot) {
+                                IntArray(128) { LedPalette.OFF_COLOR }
+                            }
+                            colors[index] = LedPalette.sixBitToColor(r6, g6, b6)
+                        }
+                        i += 4
+                    }
+                    return
+                }
+
+                Log.w(TAG, "Unsupported 0x41/0x3D payload format (len=$payloadLength)")
+            }
+            0x7D.toByte() -> {
+                for ((slotId, colors) in paletteUploads) {
+                    listener.onPaletteUpdate(slotId, "Slot ${slotId + 1}", colors.copyOf())
+                }
+                paletteUploads.clear()
+                uploadSessionSlot = null
+            }
         }
     }
 }

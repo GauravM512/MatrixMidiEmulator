@@ -11,6 +11,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.matrix.midiemulator.R
 import com.matrix.midiemulator.midi.MatrixMidiDeviceService
@@ -20,6 +21,9 @@ import com.matrix.midiemulator.util.AppPreferences
 import com.matrix.midiemulator.util.MidiMessageBuilder
 import com.matrix.midiemulator.util.LedPalette
 import com.matrix.midiemulator.util.NoteMap
+import com.matrix.midiemulator.util.PaletteRuntime
+import com.matrix.midiemulator.util.PaletteSlot
+import com.matrix.midiemulator.util.PaletteStore
 
 /**
  * Main activity that displays the pad grid and manages the MIDI connection.
@@ -71,6 +75,8 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
             bridgeParser?.onSend(data, 0, data.size, timestamp)
         }
 
+        PaletteStore.applySelectedPalette(this)
+
         initViews()
         setupPadGrid()
         setupTouchbar()
@@ -85,6 +91,7 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
         super.onResume()
         // Register as LED listener
         MatrixMidiDeviceService.ledListener = this
+        PaletteStore.applySelectedPalette(this)
         connectUsbBridgeAsync()
         applyUserPreferences()
         checkMidiConnection()
@@ -135,7 +142,7 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
     }
 
     private fun applyUserPreferences() {
-        deviceNameText.visibility = if (AppPreferences.isTitleVisible(this)) View.VISIBLE else View.GONE
+        deviceNameText.visibility = View.GONE
         fnButtonContainer.visibility = if (AppPreferences.isFnVisible(this)) View.VISIBLE else View.GONE
         if (::touchbar.isInitialized) {
             touchbar.setSelectedPage(AppPreferences.getSelectedPage(this))
@@ -267,6 +274,13 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
     override fun onClearAll() {
         mainHandler.post {
             padGrid.clearAll()
+        }
+    }
+
+    override fun onPaletteUpdate(slotId: Int, name: String, colors: IntArray) {
+        mainHandler.post {
+            PaletteStore.saveAndApply(this, PaletteSlot(slotId, name, colors.copyOf()))
+            Toast.makeText(this, "Imported palette saved to Slot ${slotId + 1}", Toast.LENGTH_SHORT).show()
         }
     }
 }

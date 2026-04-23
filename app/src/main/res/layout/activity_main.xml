@@ -46,7 +46,8 @@
             android:textColor="#6C63FF"
             android:textSize="14sp"
             android:fontFamily="monospace"
-            android:textStyle="bold"/>
+            android:textStyle="bold"
+            android:visibility="gone"/>
 
         <TextView
             android:id="@+id/settingsButton"

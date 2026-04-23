@@ -3,6 +3,7 @@ package com.matrix.midiemulator.midi
 import android.media.midi.MidiDeviceService
 import android.media.midi.MidiReceiver as AndroidMidiReceiver
 import android.util.Log
+import com.matrix.midiemulator.util.PaletteStore
 
 /**
  * Android MIDI Device Service that makes this app appear as a USB MIDI peripheral.
@@ -36,6 +37,10 @@ class MatrixMidiDeviceService : MidiDeviceService() {
             ledListener?.onEdgeColorChange(note, color)
         }
 
+        override fun onPaletteUpdate(slotId: Int, name: String, colors: IntArray) {
+            ledListener?.onPaletteUpdate(slotId, name, colors)
+        }
+
         override fun onClearAll() {
             ledListener?.onClearAll()
         }
@@ -59,6 +64,7 @@ class MatrixMidiDeviceService : MidiDeviceService() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        PaletteStore.applySelectedPalette(this)
         Log.i(TAG, "MIDI Device Service created")
     }
 
