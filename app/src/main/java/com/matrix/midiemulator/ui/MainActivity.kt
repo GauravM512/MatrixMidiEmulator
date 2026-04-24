@@ -285,4 +285,8 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
             Toast.makeText(this, "Imported palette saved to Slot ${slotId + 1}", Toast.LENGTH_SHORT).show()
         }
     }
+
+    override fun onIdentityRequest() {
+        sendToHost(MidiReceiver.identityReplyBytes())
+    }
 }

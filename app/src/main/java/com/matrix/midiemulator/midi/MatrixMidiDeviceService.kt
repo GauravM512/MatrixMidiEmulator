@@ -41,6 +41,10 @@ class MatrixMidiDeviceService : MidiDeviceService() {
             ledListener?.onPaletteUpdate(slotId, name, colors)
         }
 
+        override fun onIdentityRequest() {
+            sendToHost(MidiReceiver.identityReplyBytes())
+        }
+
         override fun onClearAll() {
             ledListener?.onClearAll()
         }

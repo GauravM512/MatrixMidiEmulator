@@ -21,6 +21,21 @@ class MidiReceiver(
     companion object {
         private const val TAG = "MidiReceiver"
 
+        val IDENTITY_REPLY = byteArrayOf(
+            0xF0.toByte(),       // SysEx Start
+            0x7E,                // Universal Non-Realtime  
+            0x7F,                // Device ID = 127
+            0x06,                // General Info
+            0x02,                // Identity Reply
+            0x00, 0x02, 0x03,    // Manufacturer: 203 Systems
+            0x4D, 0x58,          // Family: 'M' 'X'
+            0x11, 0x01,          // Model: Mystrix
+            0x01, 0x00, 0x00, 0x00, // Version 1.0.0 release
+            0xF7.toByte()        // SysEx End
+        )
+
+        fun identityReplyBytes(): ByteArray = IDENTITY_REPLY.copyOf()
+
         // SysEx manufacturer ID for Apollo/Matrix
         private const val SYSEX_MANUFACTURER = 0x5E
         private const val SYSEX_BATCH = 0x5F
@@ -47,6 +62,9 @@ class MidiReceiver(
 
         /** Called when a custom palette upload finishes. */
         fun onPaletteUpdate(slotId: Int, name: String, colors: IntArray)
+
+        /** Called when MatrixOS asks for MIDI identity. */
+        fun onIdentityRequest() = Unit
 
         /** Called when all LEDs should be cleared */
         fun onClearAll()
@@ -204,6 +222,11 @@ class MidiReceiver(
     private fun processSysEx(data: ByteArray) {
         if (data.size < 3) return
 
+        if (isIdentityRequest(data)) {
+            listener.onIdentityRequest()
+            return
+        }
+
         if (data.size > 5 && data[1] == 0x00.toByte() && data[2] == 0x02.toByte() && data[3] == 0x03.toByte()) {
             processMatrixSysEx(data)
             return
@@ -348,5 +371,14 @@ class MidiReceiver(
                 uploadSessionSlot = null
             }
         }
+    }
+
+    private fun isIdentityRequest(data: ByteArray): Boolean {
+        return data.size == 6 &&
+            data[1] == 0x7E.toByte() &&
+            data[2] in 0x00..0x7F &&
+            data[3] == 0x06.toByte() &&
+            data[4] == 0x01.toByte() &&
+            data[5] == SYSEX_END
     }
 }
