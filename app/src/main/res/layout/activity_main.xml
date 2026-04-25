@@ -56,7 +56,7 @@
             android:layout_marginStart="12dp"
             android:src="@drawable/cog"
             android:scaleType="centerInside"
-            android:background="@drawable/circle_red"
+            android:background="@drawable/circle_white"
             android:contentDescription="@string/settings"
             android:padding="4dp"/>
     </LinearLayout>
