@@ -49,16 +49,16 @@
             android:textStyle="bold"
             android:visibility="gone"/>
 
-        <TextView
+        <ImageButton
             android:id="@+id/settingsButton"
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:layout_marginStart="12dp"
-            android:gravity="center"
-            android:text="⚙"
-            android:textColor="#B8B8B8"
-            android:textSize="18sp"
-            android:background="@drawable/circle_red"/>
+            android:src="@drawable/cog"
+            android:scaleType="centerInside"
+            android:background="@drawable/circle_red"
+            android:contentDescription="@string/settings"
+            android:padding="4dp"/>
     </LinearLayout>
 
     <!-- 8x8 Pad Grid -->

@@ -23,6 +23,7 @@ import java.io.InputStreamReader
 class SettingsActivity : AppCompatActivity() {
 
     private var suppressSourceChange = false
+    private var suppressLayoutModeChange = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,6 +34,7 @@ class SettingsActivity : AppCompatActivity() {
 
         val hideFnSwitch = findViewById<SwitchMaterial>(R.id.hideFnSwitch)
         val showConnectionStatusSwitch = findViewById<SwitchMaterial>(R.id.showConnectionStatusSwitch)
+        val layoutModeSpinner = findViewById<Spinner>(R.id.layoutModeSpinner)
         val paletteSourceSpinner = findViewById<Spinner>(R.id.paletteSourceSpinner)
         val paletteImportSlotSpinner = findViewById<Spinner>(R.id.paletteImportSlotSpinner)
         val importPaletteButton = findViewById<Button>(R.id.importPaletteButton)
@@ -48,6 +50,17 @@ class SettingsActivity : AppCompatActivity() {
         brightnessSeekBar.max = 200
         brightnessSeekBar.progress = currentEffectBrightness
         brightnessValueText.text = getString(R.string.setting_brightness_value, currentEffectBrightness)
+
+        val layoutModes = listOf(
+            getString(R.string.setting_layout_mystrix),
+            getString(R.string.setting_layout_launchpad_pro_mk2)
+        )
+        layoutModeSpinner.adapter = ArrayAdapter(this, R.layout.spinner_item_light, layoutModes).apply {
+            setDropDownViewResource(R.layout.spinner_item_dropdown_light)
+        }
+        suppressLayoutModeChange = true
+        layoutModeSpinner.setSelection(AppPreferences.getLayoutMode(this))
+        suppressLayoutModeChange = false
 
         val paletteSources = listOf(
             getString(R.string.setting_palette_source_app_default),
@@ -80,6 +93,16 @@ class SettingsActivity : AppCompatActivity() {
         
         showConnectionStatusSwitch.setOnCheckedChangeListener { _, isChecked ->
             AppPreferences.setConnectionStatusVisible(this, isChecked)
+        }
+
+        layoutModeSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>, view: android.view.View?, position: Int, id: Long) {
+                if (suppressLayoutModeChange) return
+                AppPreferences.setLayoutMode(this@SettingsActivity, position)
+                Toast.makeText(this@SettingsActivity, getString(R.string.setting_layout_mode_success, layoutModes[position]), Toast.LENGTH_SHORT).show()
+            }
+
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>) = Unit
         }
 
         brightnessSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
