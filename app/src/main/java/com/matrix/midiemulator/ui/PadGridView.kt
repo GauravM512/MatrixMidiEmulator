@@ -45,6 +45,9 @@ class PadGridView @JvmOverloads constructor(
     /** Edge backlight colors for the 32 edge segments */
     private val edgeColors = IntArray(EDGE_SEGMENT_COUNT) { LedPalette.OFF_COLOR }
 
+    /** Launchpad top-right corner button (note 27) */
+    private var cornerTopRightColor = LedPalette.OFF_COLOR
+
     /** Whether each pad is currently pressed */
     private val padPressed = BooleanArray(128) { false }
 
@@ -63,7 +66,12 @@ class PadGridView @JvmOverloads constructor(
     private var cellWidth = 0f
     private var cellHeight = 0f
     private var gap = 0f
+    private var gridLeft = 0f
+    private var gridTop = 0f
+    private var edgeButtonRadius = 0f
     private var effectBrightnessScale = 1f
+    private var circularPadMode = false
+    private var showEdgeLights = true
 
     /** Callback for MIDI events */
     var onPadEventListener: PadEventListener? = null
@@ -92,33 +100,67 @@ class PadGridView @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        cellWidth = (w - gap * (GRID_COLS + 1)) / GRID_COLS
-        cellHeight = (h - gap * (GRID_ROWS + 1)) / GRID_ROWS
+        recomputeGridMetrics(w, h)
     }
+
+    private fun recomputeGridMetrics(w: Int, h: Int) {
+        val size = min(w, h).toFloat()
+        if (!circularPadMode) {
+            gridLeft = 0f
+            gridTop = 0f
+            edgeButtonRadius = 0f
+            cellWidth = (size - gap * (GRID_COLS + 1)) / GRID_COLS
+            cellHeight = (size - gap * (GRID_ROWS + 1)) / GRID_ROWS
+            return
+        }
+
+        val baseCell = (size - gap * (GRID_COLS + 1)) / GRID_COLS
+        val edgeDiameter = baseCell * 0.58f
+        edgeButtonRadius = edgeDiameter / 2f
+        val reserve = edgeDiameter + gap * 1.8f
+        val available = (size - reserve * 2f).coerceAtLeast(gap * (GRID_COLS + 1) + 8f)
+
+        gridLeft = reserve
+        gridTop = reserve
+        cellWidth = (available - gap * (GRID_COLS + 1)) / GRID_COLS
+        cellHeight = (available - gap * (GRID_ROWS + 1)) / GRID_ROWS
+    }
+
+    private fun gridInnerLeft(): Float = gridLeft + gap
+    private fun gridInnerTop(): Float = gridTop + gap
+    private fun gridInnerRight(): Float = gridInnerLeft() + GRID_COLS * cellWidth + (GRID_COLS - 1) * gap
+    private fun gridInnerBottom(): Float = gridInnerTop() + GRID_ROWS * cellHeight + (GRID_ROWS - 1) * gap
+
+    private fun padLeftForCol(col: Int): Float = gridInnerLeft() + col * (cellWidth + gap)
+    private fun padTopForRow(row: Int): Float = gridInnerTop() + (GRID_ROWS - 1 - row) * (cellHeight + gap)
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        drawEdgeBacklight(canvas)
+        if (circularPadMode) {
+            drawLaunchpadSideButtons(canvas)
+        } else if (showEdgeLights) {
+            drawEdgeBacklight(canvas)
+        }
 
         for (row in 0 until GRID_ROWS) {
             for (col in 0 until GRID_COLS) {
                 val note = NoteMap.noteForPad(col, row)
-                val left = gap + col * (cellWidth + gap)
-                val top = gap + (GRID_ROWS - 1 - row) * (cellHeight + gap) // Flip: row 0 = bottom
+                val left = padLeftForCol(col)
+                val top = padTopForRow(row) // Flip: row 0 = bottom
 
                 padRect.set(left, top, left + cellWidth, top + cellHeight)
 
                 val litPadColor = applyPadBrightness(padColors[note])
                 val radius = 8f * resources.displayMetrics.density
+                val cx = padRect.centerX()
+                val cy = padRect.centerY()
 
                 val padScale = currentPadBrightnessScale()
                 if (padScale > 1f && padColors[note] != LedPalette.OFF_COLOR) {
                     val boost = (padScale - 1f).coerceIn(0f, 1f)
-                    val cx = padRect.centerX()
-                    val cy = padRect.centerY()
-                    val bloomRadius = (maxOf(cellWidth, cellHeight) * (0.58f + boost * 0.55f)).coerceAtLeast(1f)
-                    val bloomAlpha = (28 + boost * 78f).toInt().coerceIn(0, 255)
+                    val bloomRadius = (maxOf(cellWidth, cellHeight) * (0.62f + boost * 0.75f)).coerceAtLeast(1f)
+                    val bloomAlpha = (34 + boost * 104f).toInt().coerceIn(0, 255)
                     paint.shader = RadialGradient(
                         cx,
                         cy,
@@ -132,7 +174,7 @@ class PadGridView @JvmOverloads constructor(
                     paint.shader = null
                 }
 
-                // Draw pad background color
+                // Draw pad background color (Launchpad center grid remains square)
                 paint.color = litPadColor
                 paint.style = Paint.Style.FILL
                 canvas.drawRoundRect(padRect, radius, radius, paint)
@@ -146,6 +188,128 @@ class PadGridView @JvmOverloads constructor(
                     paint.style = Paint.Style.FILL
                 }
             }
+        }
+    }
+
+    private fun drawLaunchpadSideButtons(canvas: Canvas) {
+        val topY = gridInnerTop() - edgeButtonRadius - gap * 0.8f
+        val bottomY = gridInnerBottom() + edgeButtonRadius + gap * 0.8f
+        val leftX = gridInnerLeft() - edgeButtonRadius - gap * 0.8f
+        val rightX = gridInnerRight() + edgeButtonRadius + gap * 0.8f
+
+        // Top: notes 28..35, left -> right
+        for (i in 0 until GRID_COLS) {
+            val cx = padLeftForCol(i) + cellWidth / 2f
+            drawLaunchpadSideButton(canvas, 28 + i, cx, topY)
+        }
+
+        // Bottom: notes 116..123, left -> right
+        for (i in 0 until GRID_COLS) {
+            val cx = padLeftForCol(i) + cellWidth / 2f
+            drawLaunchpadSideButton(canvas, 116 + i, cx, bottomY)
+        }
+
+        // Left: notes 108..115, top -> bottom
+        for (i in 0 until GRID_ROWS) {
+            val cy = gridInnerTop() + i * (cellHeight + gap) + cellHeight / 2f
+            drawLaunchpadSideButton(canvas, 108 + i, leftX, cy)
+        }
+
+        // Right: notes 100..107, top -> bottom
+        for (i in 0 until GRID_ROWS) {
+            val cy = gridInnerTop() + i * (cellHeight + gap) + cellHeight / 2f
+            drawLaunchpadSideButton(canvas, 100 + i, rightX, cy)
+        }
+
+        // Top-right corner: note 27
+        drawLaunchpadSideButton(canvas, 27, rightX, topY)
+    }
+
+    private fun drawLaunchpadSideButton(canvas: Canvas, note: Int, cx: Float, cy: Float) {
+        val index = mapNoteToEdgeSegmentIndex(note)
+        val edgeColor = when {
+            note == 27 -> cornerTopRightColor
+            index != -1 -> edgeColors[index]
+            else -> LedPalette.OFF_COLOR
+        }
+        val d = resources.displayMetrics.density
+
+        if (note == 27) {
+            // Corner note 27 is intentionally a plain circle (no ring) to differentiate it.
+            if (edgeColor == LedPalette.OFF_COLOR) {
+                paint.shader = null
+                paint.style = Paint.Style.FILL
+                paint.color = 0xFF5F6771.toInt()
+                canvas.drawCircle(cx, cy, edgeButtonRadius * 0.80f, paint)
+            } else {
+                val litColor = applyEffectBrightness(edgeColor)
+                val glowRadius = edgeButtonRadius * 1.65f
+                paint.shader = RadialGradient(
+                    cx,
+                    cy,
+                    glowRadius,
+                    withAlpha(litColor, scaledAlpha(80)),
+                    withAlpha(litColor, 0),
+                    Shader.TileMode.CLAMP
+                )
+                paint.style = Paint.Style.FILL
+                canvas.drawCircle(cx, cy, glowRadius, paint)
+                paint.shader = null
+
+                paint.style = Paint.Style.FILL
+                paint.color = withAlpha(litColor, 245)
+                canvas.drawCircle(cx, cy, edgeButtonRadius * 0.80f, paint)
+            }
+
+            if (padPressed[note]) {
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 2f * d
+                paint.color = 0xAAFFFFFF.toInt()
+                canvas.drawCircle(cx, cy, edgeButtonRadius * 0.58f, paint)
+            }
+            return
+        }
+
+        // Dark center disk (consistent for OFF and ON states)
+        paint.shader = null
+        paint.style = Paint.Style.FILL
+        paint.color = 0xFF0B111D.toInt()
+        canvas.drawCircle(cx, cy, edgeButtonRadius * 0.95f, paint)
+
+        if (edgeColor == LedPalette.OFF_COLOR) {
+            // OFF: simple neutral ring like c.png
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2f * d
+            paint.color = 0xFF7A8088.toInt()
+            canvas.drawCircle(cx, cy, edgeButtonRadius * 0.88f, paint)
+        } else {
+            val litColor = applyEffectBrightness(edgeColor)
+
+            // ON: soft colored halo + colored ring like c2.png
+            val glowRadius = edgeButtonRadius * 1.75f
+            paint.shader = RadialGradient(
+                cx,
+                cy,
+                glowRadius,
+                withAlpha(litColor, scaledAlpha(86)),
+                withAlpha(litColor, 0),
+                Shader.TileMode.CLAMP
+            )
+            paint.style = Paint.Style.FILL
+            canvas.drawCircle(cx, cy, glowRadius, paint)
+            paint.shader = null
+
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2.4f * d
+            paint.color = withAlpha(litColor, 230)
+            canvas.drawCircle(cx, cy, edgeButtonRadius * 0.88f, paint)
+        }
+
+        if (padPressed[note]) {
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2f * d
+            paint.color = 0xAAFFFFFF.toInt()
+            canvas.drawCircle(cx, cy, edgeButtonRadius * 0.70f, paint)
         }
     }
 
@@ -248,7 +412,7 @@ class PadGridView @JvmOverloads constructor(
         if (effectBrightnessScale >= 0.999f && effectBrightnessScale <= 1.001f) return color
 
         val factor = if (effectBrightnessScale <= 1f) {
-            0.35f + (effectBrightnessScale * 0.65f)
+            0.18f + (effectBrightnessScale * 0.82f)
         } else {
             1f + ((effectBrightnessScale - 1f) * 0.20f).coerceAtMost(0.25f)
         }
@@ -263,7 +427,7 @@ class PadGridView @JvmOverloads constructor(
 
     private fun scaledAlpha(baseAlpha: Int): Int {
         val factor = if (effectBrightnessScale <= 1f) {
-            0.35f + (effectBrightnessScale * 0.65f)
+            0.20f + (effectBrightnessScale * 0.80f)
         } else {
             1f + ((effectBrightnessScale - 1f) * 0.15f).coerceAtMost(0.20f)
         }
@@ -274,18 +438,22 @@ class PadGridView @JvmOverloads constructor(
         val scale = currentPadBrightnessScale()
         if (scale >= 0.999f && scale <= 1.001f) return color
 
-        val factor = if (scale <= 1f) {
-            0.40f + (scale * 0.60f)
-        } else {
-            1f + ((scale - 1f) * 0.50f).coerceAtMost(0.35f)
+        if (scale <= 1f) {
+            val factor = 0.22f + (scale * 0.78f)
+            return Color.argb(
+                Color.alpha(color),
+                (Color.red(color) * factor).toInt().coerceIn(0, 255),
+                (Color.green(color) * factor).toInt().coerceIn(0, 255),
+                (Color.blue(color) * factor).toInt().coerceIn(0, 255)
+            )
         }
 
-        return Color.argb(
-            Color.alpha(color),
-            (Color.red(color) * factor).toInt().coerceIn(0, 255),
-            (Color.green(color) * factor).toInt().coerceIn(0, 255),
-            (Color.blue(color) * factor).toInt().coerceIn(0, 255)
-        )
+        val boost = (scale - 1f).coerceIn(0f, 1f)
+        val hsv = FloatArray(3)
+        Color.colorToHSV(color, hsv)
+        hsv[2] = (hsv[2] + (1f - hsv[2]) * (boost * 0.95f)).coerceIn(0f, 1f)
+        hsv[1] = (hsv[1] * (1f - boost * 0.10f)).coerceIn(0f, 1f)
+        return Color.HSVToColor(Color.alpha(color), hsv)
     }
 
     private fun currentPadBrightnessScale(): Float {
@@ -329,10 +497,15 @@ class PadGridView @JvmOverloads constructor(
     }
 
     private fun getPadForPosition(x: Float, y: Float): Int? {
+        if (circularPadMode) {
+            val edge = getEdgeNoteForPosition(x, y)
+            if (edge != null) return edge
+        }
+
         for (row in 0 until GRID_ROWS) {
             for (col in 0 until GRID_COLS) {
-                val left = gap + col * (cellWidth + gap)
-                val top = gap + (GRID_ROWS - 1 - row) * (cellHeight + gap)
+                val left = padLeftForCol(col)
+                val top = padTopForRow(row)
                 val right = left + cellWidth
                 val bottom = top + cellHeight
 
@@ -342,6 +515,56 @@ class PadGridView @JvmOverloads constructor(
             }
         }
         return null
+    }
+
+    private fun getEdgeNoteForPosition(x: Float, y: Float): Int? {
+        val hitRadius = edgeButtonRadius * 1.1f
+        val hitRadiusSq = hitRadius * hitRadius
+
+        val notes = IntArray(32)
+        var k = 0
+        for (n in 28..35) notes[k++] = n
+        for (n in 100..107) notes[k++] = n
+        for (n in 108..115) notes[k++] = n
+        for (n in 116..123) notes[k++] = n
+
+        for (note in notes) {
+            val center = edgeButtonCenterForNote(note) ?: continue
+            val dx = x - center.first
+            val dy = y - center.second
+            if (dx * dx + dy * dy <= hitRadiusSq) {
+                return note
+            }
+        }
+        return null
+    }
+
+    private fun edgeButtonCenterForNote(note: Int): Pair<Float, Float>? {
+        val topY = gridInnerTop() - edgeButtonRadius - gap * 0.8f
+        val bottomY = gridInnerBottom() + edgeButtonRadius + gap * 0.8f
+        val leftX = gridInnerLeft() - edgeButtonRadius - gap * 0.8f
+        val rightX = gridInnerRight() + edgeButtonRadius + gap * 0.8f
+
+        return when (note) {
+            27 -> Pair(rightX, topY)
+            in 28..35 -> {
+                val i = note - 28
+                Pair(padLeftForCol(i) + cellWidth / 2f, topY)
+            }
+            in 116..123 -> {
+                val i = note - 116
+                Pair(padLeftForCol(i) + cellWidth / 2f, bottomY)
+            }
+            in 108..115 -> {
+                val i = note - 108
+                Pair(leftX, gridInnerTop() + i * (cellHeight + gap) + cellHeight / 2f)
+            }
+            in 100..107 -> {
+                val i = note - 100
+                Pair(rightX, gridInnerTop() + i * (cellHeight + gap) + cellHeight / 2f)
+            }
+            else -> null
+        }
     }
 
     private fun handleTouchDown(pointerId: Int, x: Float, y: Float, pressure: Float) {
@@ -440,6 +663,12 @@ class PadGridView @JvmOverloads constructor(
      * Set edge backlight color for a given MIDI note.
      */
     fun setEdgeSegmentColor(note: Int, color: Int) {
+        if (note == 27) {
+            cornerTopRightColor = color
+            invalidate()
+            return
+        }
+
         val index = mapNoteToEdgeSegmentIndex(note)
         if (index != -1) {
             edgeColors[index] = color
@@ -454,6 +683,18 @@ class PadGridView @JvmOverloads constructor(
 
     fun setEffectBrightnessPercent(percent: Int) {
         setLedBrightnessPercent(percent)
+    }
+
+    fun setCircularPadMode(enabled: Boolean) {
+        circularPadMode = enabled
+        recomputeGridMetrics(width, height)
+        requestLayout()
+        invalidate()
+    }
+
+    fun setShowEdgeLights(enabled: Boolean) {
+        showEdgeLights = enabled
+        invalidate()
     }
 
     fun setPadBrightnessEnabled(@Suppress("UNUSED_PARAMETER") enabled: Boolean) {
@@ -482,6 +723,7 @@ class PadGridView @JvmOverloads constructor(
     fun clearAll() {
         padColors.fill(LedPalette.OFF_COLOR)
         edgeColors.fill(LedPalette.OFF_COLOR)
+        cornerTopRightColor = LedPalette.OFF_COLOR
         invalidate()
     }
 }

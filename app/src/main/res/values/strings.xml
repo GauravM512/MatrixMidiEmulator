@@ -3,11 +3,16 @@
     <string name="status_disconnected">Disconnected</string>
     <string name="status_connected">Connected to Host</string>
     <string name="hint_connect_usb">Connect USB and select MIDI mode</string>
+    <string name="settings">Settings</string>
     <string name="settings_title">Settings</string>
     <string name="settings_open">Settings</string>
     <string name="setting_hide_fn">Hide FN key</string>
     <string name="setting_appearance">Appearance</string>
     <string name="setting_show_connection_status">Show Connection Status</string>
+    <string name="setting_layout_mode">Layout mode</string>
+    <string name="setting_layout_mystrix">Mystrix</string>
+    <string name="setting_layout_launchpad_pro_mk2">Launchpad Pro</string>
+    <string name="setting_layout_mode_success">Layout set to %1$s</string>
     <string name="setting_effect_brightness">Light brightness</string>
     <string name="setting_brightness_value">Light brightness: %1$d%%</string>
     <string name="setting_brightness_hint">Adjust LED intensity for pads and edge lights together. 100%% is normal; increase above 100%% for extra punch.</string>
