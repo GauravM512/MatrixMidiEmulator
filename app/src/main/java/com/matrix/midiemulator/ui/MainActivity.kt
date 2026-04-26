@@ -1,13 +1,11 @@
 package com.matrix.midiemulator.ui
 
 import android.content.Intent
-import android.media.midi.MidiDeviceInfo
-import android.media.midi.MidiManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.view.MotionEvent
+import android.view.OrientationEventListener
 import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
@@ -20,9 +18,7 @@ import com.matrix.midiemulator.midi.MidiReceiver
 import com.matrix.midiemulator.midi.UsbMidiBridge
 import com.matrix.midiemulator.util.AppPreferences
 import com.matrix.midiemulator.util.MidiMessageBuilder
-import com.matrix.midiemulator.util.LedPalette
 import com.matrix.midiemulator.util.NoteMap
-import com.matrix.midiemulator.util.PaletteRuntime
 import com.matrix.midiemulator.util.PaletteSlot
 import com.matrix.midiemulator.util.PaletteStore
 
@@ -40,15 +36,14 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
     private lateinit var touchbar: TouchbarView
     private lateinit var statusText: TextView
     private lateinit var statusIndicator: View
-    private lateinit var fnButtonContainer: View
-    private lateinit var fnButton: TextView
     private lateinit var deviceNameText: TextView
     private lateinit var settingsButton: View
 
     private var isConnected = false
-    private var isFnPressed = false
     private var usbBridge: UsbMidiBridge? = null
     private var bridgeParser: MidiReceiver? = null
+    private var padOrientationListener: OrientationEventListener? = null
+    private var padRotationDegrees = 0f
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val statusTicker = object : Runnable {
@@ -66,6 +61,7 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        supportActionBar?.hide()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_main)
 
@@ -80,9 +76,9 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
         PaletteStore.applySelectedPalette(this)
 
         initViews()
+        setupPadOrientationListener()
         setupPadGrid()
         setupTouchbar()
-        setupFnButton()
         setupSettingsButton()
         applyUserPreferences()
         checkMidiConnection()
@@ -104,6 +100,7 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
         super.onPause()
         // Don't unregister — keep receiving LED data
         mainHandler.removeCallbacks(statusTicker)
+        padOrientationListener?.disable()
     }
 
     override fun onDestroy() {
@@ -131,8 +128,6 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
         touchbarContainer = findViewById(R.id.touchbarContainer)
         statusText = findViewById(R.id.statusText)
         statusIndicator = findViewById(R.id.statusIndicator)
-        fnButtonContainer = findViewById(R.id.fnButtonContainer)
-        fnButton = findViewById(R.id.fnButton)
         deviceNameText = findViewById(R.id.deviceNameText)
         settingsButton = findViewById(R.id.settingsButton)
     }
@@ -140,6 +135,19 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
     private fun setupSettingsButton() {
         settingsButton.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
+        }
+    }
+
+    private fun setupPadOrientationListener() {
+        padOrientationListener = object : OrientationEventListener(this) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == ORIENTATION_UNKNOWN) return
+
+                when (orientation) {
+                    in 45..134 -> applyPadRotation(-90f)
+                    in 225..314 -> applyPadRotation(90f)
+                }
+            }
         }
     }
 
@@ -151,16 +159,35 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
         padGrid.setCircularPadMode(isLaunchpadLayout)
         padGrid.setShowEdgeLights(!isLaunchpadLayout)
 
-        fnButtonContainer.visibility = if (!isLaunchpadLayout && AppPreferences.isFnVisible(this)) View.VISIBLE else View.GONE
         touchbarContainer.visibility = if (isLaunchpadLayout) View.GONE else View.VISIBLE
 
         padGrid.setEffectBrightnessPercent(AppPreferences.getLedBrightnessPercent(this))
+        applyLandscapePadsPreference()
         if (!isLaunchpadLayout && ::touchbar.isInitialized) {
             touchbar.setSelectedPage(AppPreferences.getSelectedPage(this))
         }
         val showStatus = AppPreferences.isConnectionStatusVisible(this)
         statusText.visibility = if (showStatus) View.VISIBLE else View.GONE
         statusIndicator.visibility = if (showStatus) View.VISIBLE else View.GONE
+    }
+
+    private fun applyLandscapePadsPreference() {
+        if (AppPreferences.isLandscapePadsEnabled(this)) {
+            if (padRotationDegrees == 0f) applyPadRotation(90f)
+            padOrientationListener?.enable()
+        } else {
+            padOrientationListener?.disable()
+            applyPadRotation(0f)
+        }
+    }
+
+    private fun applyPadRotation(rotation: Float) {
+        if (padRotationDegrees == rotation) return
+        padRotationDegrees = rotation
+        padGrid.animate()
+            .rotation(rotation)
+            .setDuration(120L)
+            .start()
     }
 
     private fun setupPadGrid() {
@@ -205,26 +232,6 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
             override fun onSegmentAftertouch(index: Int, pressure: Int) {
                 val note = NoteMap.noteForTouchbar(index)
                 sendToHost(MidiMessageBuilder.polyAftertouch(note, pressure))
-            }
-        }
-    }
-
-    private fun setupFnButton() {
-        fnButton.setOnTouchListener { _, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    isFnPressed = true
-                    fnButton.setBackgroundColor(0xFF6C63FF.toInt())
-                    sendToHost(MidiMessageBuilder.fnPress())
-                    true
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    isFnPressed = false
-                    fnButton.setBackgroundColor(LedPalette.OFF_COLOR)
-                    sendToHost(MidiMessageBuilder.fnRelease())
-                    true
-                }
-                else -> false
             }
         }
     }
