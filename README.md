@@ -67,12 +67,20 @@ y=0(bot)  36   37   38   39   68   69   70   71
 2. Connect your Android device
 3. Build and run
 
-## USB Connection
+## How to Connect
 
-1. Connect your phone to PC via USB cable
-2. When prompted, allow USB MIDI access
-3. The phone will appear as "Mystrix" in your DAW's MIDI device list
-4. Select it as a control surface / MIDI input
+1. **Open the app** on your phone.
+2. **Connect the USB cable** to your phone and your computer.
+3. **Set the MIDI connection:** Swipe down from the top of your screen to open the notification panel and tap to select **MIDI**.
+4. **Connect to software:** Open your DAW (e.g., Ableton Live), go to your MIDI settings, and select "Midi Function" as the control surface / MIDI input.
+5. **Start playing!**
+
+### Troubleshooting: MIDI option is not visible (Xiaomi Devices)
+
+Xiaomi doesn’t show this option by default. Don’t worry though, the functionality still exists in your phone. All you need to do to switch to USB MIDI mode is to go to the Developer Settings menu on your phone and find USB Mode.
+
+The option is called **"Select USB configuration"**. It is under the *Networking* section of the developer options.
+
 
 ## Project Structure
 
