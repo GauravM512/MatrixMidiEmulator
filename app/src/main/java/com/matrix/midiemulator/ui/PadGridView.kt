@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
@@ -68,6 +69,7 @@ class PadGridView @JvmOverloads constructor(
     private val noteTouchCounts = IntArray(128) { 0 }
 
     private val padRect = RectF()
+    private val centerPadPath = Path()
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     private var cellWidth = 0f
@@ -199,17 +201,118 @@ class PadGridView @JvmOverloads constructor(
                 // Draw pad background color (Launchpad center grid remains square)
                 paint.color = litPadColor
                 paint.style = Paint.Style.FILL
-                canvas.drawRoundRect(padRect, radius, radius, paint)
+                drawPadShape(canvas, padRect, col, row, radius)
 
                 // Draw press highlight border
                 if (padPressed[note]) {
                     paint.color = 0x80FFFFFF.toInt()
                     paint.style = Paint.Style.STROKE
                     paint.strokeWidth = 3f * resources.displayMetrics.density
-                    canvas.drawRoundRect(padRect, radius, radius, paint)
+                    drawPadShape(canvas, padRect, col, row, radius)
                     paint.style = Paint.Style.FILL
                 }
             }
+        }
+    }
+
+    private fun drawPadShape(canvas: Canvas, rect: RectF, col: Int, row: Int, radius: Float) {
+        val cutCorner = centerCutCorner(col, row)
+        if (cutCorner == null) {
+            if (radius > 0f) {
+                canvas.drawRoundRect(rect, radius, radius, paint)
+            } else {
+                canvas.drawRect(rect, paint)
+            }
+            return
+        }
+
+        val baseCut = min(rect.width(), rect.height()) * 0.28f
+        // In rounded layouts, ensure the diagonal cut fully clears the rounded corner arc.
+        val cut = if (radius > 0f) maxOf(baseCut, radius + 1f * resources.displayMetrics.density) else baseCut
+        centerPadPath.reset()
+        centerPadPath.fillType = Path.FillType.EVEN_ODD
+        if (radius > 0f) {
+            centerPadPath.addRoundRect(rect, radius, radius, Path.Direction.CW)
+        } else {
+            centerPadPath.addRect(rect, Path.Direction.CW)
+        }
+
+        appendCornerCutout(centerPadPath, rect, cutCorner, cut, radius)
+        canvas.drawPath(centerPadPath, paint)
+    }
+
+    private fun appendCornerCutout(path: Path, rect: RectF, cutCorner: CenterCutCorner, cut: Float, radius: Float) {
+        when (cutCorner) {
+            CenterCutCorner.TOP_LEFT -> {
+                path.moveTo(rect.left + cut, rect.top)
+                if (radius > 0f) {
+                    path.lineTo(rect.left + radius, rect.top)
+                    path.arcTo(
+                        RectF(rect.left, rect.top, rect.left + 2 * radius, rect.top + 2 * radius),
+                        270f, -90f, false
+                    )
+                } else {
+                    path.lineTo(rect.left, rect.top)
+                }
+                path.lineTo(rect.left, rect.top + cut)
+            }
+            CenterCutCorner.TOP_RIGHT -> {
+                path.moveTo(rect.right - cut, rect.top)
+                if (radius > 0f) {
+                    path.lineTo(rect.right - radius, rect.top)
+                    path.arcTo(
+                        RectF(rect.right - 2 * radius, rect.top, rect.right, rect.top + 2 * radius),
+                        270f, 90f, false
+                    )
+                } else {
+                    path.lineTo(rect.right, rect.top)
+                }
+                path.lineTo(rect.right, rect.top + cut)
+            }
+            CenterCutCorner.BOTTOM_RIGHT -> {
+                path.moveTo(rect.right - cut, rect.bottom)
+                if (radius > 0f) {
+                    path.lineTo(rect.right - radius, rect.bottom)
+                    path.arcTo(
+                        RectF(rect.right - 2 * radius, rect.bottom - 2 * radius, rect.right, rect.bottom),
+                        90f, -90f, false
+                    )
+                } else {
+                    path.lineTo(rect.right, rect.bottom)
+                }
+                path.lineTo(rect.right, rect.bottom - cut)
+            }
+            CenterCutCorner.BOTTOM_LEFT -> {
+                path.moveTo(rect.left + cut, rect.bottom)
+                if (radius > 0f) {
+                    path.lineTo(rect.left + radius, rect.bottom)
+                    path.arcTo(
+                        RectF(rect.left, rect.bottom - 2 * radius, rect.left + 2 * radius, rect.bottom),
+                        90f, 90f, false
+                    )
+                } else {
+                    path.lineTo(rect.left, rect.bottom)
+                }
+                path.lineTo(rect.left, rect.bottom - cut)
+            }
+        }
+        path.close()
+    }
+
+    private enum class CenterCutCorner {
+        TOP_LEFT,
+        TOP_RIGHT,
+        BOTTOM_RIGHT,
+        BOTTOM_LEFT
+    }
+
+    private fun centerCutCorner(col: Int, row: Int): CenterCutCorner? {
+        return when {
+            col == 3 && row == 4 -> CenterCutCorner.BOTTOM_RIGHT
+            col == 4 && row == 4 -> CenterCutCorner.BOTTOM_LEFT
+            col == 3 && row == 3 -> CenterCutCorner.TOP_RIGHT
+            col == 4 && row == 3 -> CenterCutCorner.TOP_LEFT
+            else -> null
         }
     }
 
