@@ -8,7 +8,6 @@
     android:background="#0D0D0D"
     tools:context=".ui.MainActivity">
 
-    <!-- Top status bar -->
     <LinearLayout
         android:id="@+id/statusBar"
         android:layout_width="0dp"
@@ -22,10 +21,21 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
+        <ImageButton
+            android:id="@+id/settingsButton"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/cog"
+            android:scaleType="centerInside"
+            android:background="@drawable/circle_white"
+            android:contentDescription="@string/settings"
+            android:padding="4dp" />
+
         <View
             android:id="@+id/statusIndicator"
             android:layout_width="12dp"
             android:layout_height="12dp"
+            android:layout_marginStart="12dp"
             android:background="@drawable/circle_red"/>
 
         <TextView
@@ -49,16 +59,6 @@
             android:textStyle="bold"
             android:visibility="gone"/>
 
-        <ImageButton
-            android:id="@+id/settingsButton"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginStart="12dp"
-            android:src="@drawable/cog"
-            android:scaleType="centerInside"
-            android:background="@drawable/circle_white"
-            android:contentDescription="@string/settings"
-            android:padding="4dp"/>
     </LinearLayout>
 
     <!-- 8x8 Pad Grid -->
@@ -83,30 +83,8 @@
         android:layout_marginBottom="8dp"
         android:paddingStart="4dp"
         android:paddingEnd="4dp"
-        app:layout_constraintBottom_toTopOf="@id/fnButtonContainer"
-        app:layout_constraintStart_toStartOf="@id/padGrid"
-        app:layout_constraintEnd_toEndOf="@id/padGrid"/>
-
-    <!-- FN Button -->
-    <FrameLayout
-        android:id="@+id/fnButtonContainer"
-        android:layout_width="0dp"
-        android:layout_height="44dp"
-        android:layout_marginBottom="16dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="@id/padGrid"
-        app:layout_constraintEnd_toEndOf="@id/padGrid">
-
-        <TextView
-            android:id="@+id/fnButton"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:text="FN"
-            android:textColor="#AAAAAA"
-            android:textSize="14sp"
-            android:fontFamily="monospace"
-            android:background="@drawable/pad_default"/>
-    </FrameLayout>
+        app:layout_constraintEnd_toEndOf="@id/padGrid"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -38,11 +38,11 @@
             android:textStyle="bold" />
 
         <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/hideFnSwitch"
+            android:id="@+id/landscapePadsSwitch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="@string/setting_hide_fn"
+            android:text="@string/setting_landscape_pads"
             android:textColor="#FFFFFF"
             app:useMaterialThemeColors="true" />
 

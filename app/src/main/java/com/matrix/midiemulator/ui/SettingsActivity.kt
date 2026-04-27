@@ -32,7 +32,7 @@ class SettingsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = getString(R.string.settings_title)
 
-        val hideFnSwitch = findViewById<SwitchMaterial>(R.id.hideFnSwitch)
+        val landscapePadsSwitch = findViewById<SwitchMaterial>(R.id.landscapePadsSwitch)
         val showConnectionStatusSwitch = findViewById<SwitchMaterial>(R.id.showConnectionStatusSwitch)
         val layoutModeSpinner = findViewById<Spinner>(R.id.layoutModeSpinner)
         val paletteSourceSpinner = findViewById<Spinner>(R.id.paletteSourceSpinner)
@@ -42,7 +42,7 @@ class SettingsActivity : AppCompatActivity() {
         val brightnessSeekBar = findViewById<SeekBar>(R.id.brightnessSeekBar)
         val brightnessValueText = findViewById<TextView>(R.id.brightnessValueText)
         val brightnessPreviewGrid = findViewById<PadGridView>(R.id.brightnessPreviewGrid)
-        hideFnSwitch.isChecked = !AppPreferences.isFnVisible(this)
+        landscapePadsSwitch.isChecked = AppPreferences.isLandscapePadsEnabled(this)
         showConnectionStatusSwitch.isChecked = AppPreferences.isConnectionStatusVisible(this)
         val currentEffectBrightness = AppPreferences.getLedBrightnessPercent(this).coerceIn(0, 200)
         setupBrightnessPreview(brightnessPreviewGrid)
@@ -53,7 +53,8 @@ class SettingsActivity : AppCompatActivity() {
 
         val layoutModes = listOf(
             getString(R.string.setting_layout_mystrix),
-            getString(R.string.setting_layout_launchpad_pro_mk2)
+            getString(R.string.setting_layout_launchpad_pro_mk2),
+            getString(R.string.setting_layout_launchpad_x)
         )
         layoutModeSpinner.adapter = ArrayAdapter(this, R.layout.spinner_item_light, layoutModes).apply {
             setDropDownViewResource(R.layout.spinner_item_dropdown_light)
@@ -87,8 +88,8 @@ class SettingsActivity : AppCompatActivity() {
         }
         paletteImportSlotSpinner.setSelection(AppPreferences.getPaletteImportSlot(this) - 1)
 
-        hideFnSwitch.setOnCheckedChangeListener { _, isChecked ->
-            AppPreferences.setFnVisible(this, !isChecked)
+        landscapePadsSwitch.setOnCheckedChangeListener { _, isChecked ->
+            AppPreferences.setLandscapePadsEnabled(this, isChecked)
         }
         
         showConnectionStatusSwitch.setOnCheckedChangeListener { _, isChecked ->
