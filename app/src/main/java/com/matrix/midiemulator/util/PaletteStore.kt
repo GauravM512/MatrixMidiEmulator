@@ -83,19 +83,29 @@ object PaletteStore {
 
     fun applySelectedPalette(context: Context) {
         val selectedSlot = AppPreferences.getActivePaletteSlot(context)
-        val isCustom = selectedSlot != 0
-        val colors = if (selectedSlot == 0) {
-            MidiConstants.PALETTE.copyOf()
-        } else {
-            loadSlot(context, selectedSlot - 1)?.colors ?: MidiConstants.PALETTE.copyOf()
+        val colors = when (selectedSlot) {
+            0 -> MidiConstants.PALETTE.copyOf()
+            1 -> loadMat1Palette(context) ?: MidiConstants.PALETTE.copyOf()
+            in 2..5 -> loadSlot(context, selectedSlot - 2)?.colors ?: MidiConstants.PALETTE.copyOf()
+            else -> MidiConstants.PALETTE.copyOf()
         }
+        val isCustom = selectedSlot != 0
         PaletteRuntime.setActiveColors(colors, isCustom)
     }
 
     fun saveAndApply(context: Context, slot: PaletteSlot) {
         saveSlot(context, slot)
-        if (AppPreferences.getActivePaletteSlot(context) == slot.slotId + 1) {
+        if (AppPreferences.getActivePaletteSlot(context) == slot.slotId + 2) {
             PaletteRuntime.setActiveColors(slot.colors, isCustom = true)
+        }
+    }
+
+    private fun loadMat1Palette(context: Context): IntArray? {
+        return try {
+            val text = context.assets.open("mat1jaczyyyPalette.txt").bufferedReader().use { it.readText() }
+            parsePaletteText(text, slotId = 0, fallbackName = "mat1jaczyyyPalette").colors
+        } catch (_: Exception) {
+            null
         }
     }
 

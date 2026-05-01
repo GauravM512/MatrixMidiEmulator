@@ -40,11 +40,11 @@ object AppPreferences {
     }
 
     fun getActivePaletteSlot(context: Context): Int {
-        return prefs(context).getInt(KEY_ACTIVE_PALETTE_SLOT, 0).coerceIn(0, 4)
+        return prefs(context).getInt(KEY_ACTIVE_PALETTE_SLOT, 0).coerceIn(0, 5)
     }
 
     fun setActivePaletteSlot(context: Context, slot: Int) {
-        prefs(context).edit().putInt(KEY_ACTIVE_PALETTE_SLOT, slot.coerceIn(0, 4)).apply()
+        prefs(context).edit().putInt(KEY_ACTIVE_PALETTE_SLOT, slot.coerceIn(0, 5)).apply()
     }
 
     fun getPaletteImportSlot(context: Context): Int {

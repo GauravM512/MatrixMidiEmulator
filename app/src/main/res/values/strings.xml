@@ -24,6 +24,7 @@
     <string name="setting_palette_import_slot">Import target slot</string>
     <string name="setting_palette_import_file">Import palette from file</string>
     <string name="setting_palette_source_app_default">App Default</string>
+    <string name="setting_palette_source_mat1">mat1jaczyyyPalette</string>
     <string name="setting_palette_source_slot">Slot %1$d</string>
     <string name="setting_palette_import_success">Imported palette saved to Slot %1$d</string>
     <string name="setting_palette_source_success">Palette source set to %1$s</string>

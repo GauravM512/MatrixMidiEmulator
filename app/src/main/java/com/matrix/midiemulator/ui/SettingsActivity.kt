@@ -65,6 +65,7 @@ class SettingsActivity : AppCompatActivity() {
 
         val paletteSources = listOf(
             getString(R.string.setting_palette_source_app_default),
+            getString(R.string.setting_palette_source_mat1),
             getString(R.string.setting_palette_source_slot, 1),
             getString(R.string.setting_palette_source_slot, 2),
             getString(R.string.setting_palette_source_slot, 3),
