@@ -17,6 +17,7 @@ import com.matrix.midiemulator.midi.MatrixMidiDeviceService
 import com.matrix.midiemulator.midi.MidiReceiver
 import com.matrix.midiemulator.midi.UsbMidiBridge
 import com.matrix.midiemulator.util.AppPreferences
+import com.matrix.midiemulator.util.LedPalette
 import com.matrix.midiemulator.util.MidiMessageBuilder
 import com.matrix.midiemulator.util.NoteMap
 import com.matrix.midiemulator.util.PaletteSlot
@@ -59,6 +60,19 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
         }
     }
 
+    private val flickerTicker = object : Runnable {
+        override fun run() {
+            val parser = bridgeParser
+            if (parser != null && parser.flickerReduction.enabled) {
+                for (note in parser.tickFlickerReduction()) {
+                    padGrid.setPadColor(note, LedPalette.OFF_COLOR)
+                    padGrid.setEdgeSegmentColor(note, LedPalette.OFF_COLOR)
+                }
+            }
+            mainHandler.postDelayed(this, 16)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         supportActionBar?.hide()
@@ -83,6 +97,7 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
         applyUserPreferences()
         checkMidiConnection()
         mainHandler.post(statusTicker)
+        mainHandler.post(flickerTicker)
     }
 
     override fun onResume() {
@@ -94,18 +109,21 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
         applyUserPreferences()
         checkMidiConnection()
         mainHandler.post(statusTicker)
+        mainHandler.post(flickerTicker)
     }
 
     override fun onPause() {
         super.onPause()
         // Don't unregister — keep receiving LED data
         mainHandler.removeCallbacks(statusTicker)
+        mainHandler.removeCallbacks(flickerTicker)
         padOrientationListener?.disable()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         mainHandler.removeCallbacks(statusTicker)
+        mainHandler.removeCallbacks(flickerTicker)
         usbBridge?.close()
         usbBridge = null
         bridgeParser = null
@@ -158,6 +176,7 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
 
         deviceNameText.visibility = View.GONE
         padGrid.setLayoutMode(layoutMode)
+        bridgeParser?.flickerReduction?.enabled = AppPreferences.isFlickerReductionEnabled(this)
 
         touchbarContainer.visibility = if (isLaunchpadLayout || isLaunchpadXLayout) View.GONE else View.VISIBLE
 

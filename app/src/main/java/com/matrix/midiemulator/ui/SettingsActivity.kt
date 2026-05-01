@@ -34,6 +34,7 @@ class SettingsActivity : AppCompatActivity() {
 
         val landscapePadsSwitch = findViewById<SwitchMaterial>(R.id.landscapePadsSwitch)
         val showConnectionStatusSwitch = findViewById<SwitchMaterial>(R.id.showConnectionStatusSwitch)
+        val flickerReductionSwitch = findViewById<SwitchMaterial>(R.id.flickerReductionSwitch)
         val layoutModeSpinner = findViewById<Spinner>(R.id.layoutModeSpinner)
         val paletteSourceSpinner = findViewById<Spinner>(R.id.paletteSourceSpinner)
         val paletteImportSlotSpinner = findViewById<Spinner>(R.id.paletteImportSlotSpinner)
@@ -44,6 +45,7 @@ class SettingsActivity : AppCompatActivity() {
         val brightnessPreviewGrid = findViewById<PadGridView>(R.id.brightnessPreviewGrid)
         landscapePadsSwitch.isChecked = AppPreferences.isLandscapePadsEnabled(this)
         showConnectionStatusSwitch.isChecked = AppPreferences.isConnectionStatusVisible(this)
+        flickerReductionSwitch.isChecked = AppPreferences.isFlickerReductionEnabled(this)
         val currentEffectBrightness = AppPreferences.getLedBrightnessPercent(this).coerceIn(0, 200)
         setupBrightnessPreview(brightnessPreviewGrid)
         brightnessPreviewGrid.setEffectBrightnessPercent(currentEffectBrightness)
@@ -95,6 +97,10 @@ class SettingsActivity : AppCompatActivity() {
         
         showConnectionStatusSwitch.setOnCheckedChangeListener { _, isChecked ->
             AppPreferences.setConnectionStatusVisible(this, isChecked)
+        }
+
+        flickerReductionSwitch.setOnCheckedChangeListener { _, isChecked ->
+            AppPreferences.setFlickerReductionEnabled(this, isChecked)
         }
 
         layoutModeSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {

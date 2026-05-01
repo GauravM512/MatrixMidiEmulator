@@ -2,6 +2,7 @@ package com.matrix.midiemulator.midi
 
 import android.media.midi.MidiReceiver as AndroidMidiReceiver
 import android.util.Log
+import com.matrix.midiemulator.util.FlickerReduction
 import com.matrix.midiemulator.util.LedPalette
 import com.matrix.midiemulator.util.NoteMap
 import com.matrix.midiemulator.util.PaletteRuntime
@@ -49,6 +50,9 @@ class MidiReceiver(
     private var expectedDataBytes = 0
     private var dataByteCount = 0
     private val dataBytes = IntArray(2)
+
+    /** Flicker reduction — lives here so it has access to real velocity values */
+    val flickerReduction = FlickerReduction()
 
     /** Current palette selection based on MIDI channel of last NoteOn */
     private var currentPalette = 0
@@ -163,6 +167,7 @@ class MidiReceiver(
             return
         }
         if (cc == 0 && value == 0) {
+            flickerReduction.clearAll()
             listener.onClearAll()
         }
     }
@@ -172,6 +177,10 @@ class MidiReceiver(
      * Velocity indexes into the palette; channel selects palette.
      */
     private fun handleNoteOn(note: Int, velocity: Int, channel: Int) {
+        // Flicker reduction: suppress vel=0 if STFU countdown is active
+        val shouldUpdate = flickerReduction.handleNoteOn(note, velocity)
+        if (!shouldUpdate) return
+
         currentPalette = channel
 
         val color = if (velocity == 0) {
@@ -204,15 +213,16 @@ class MidiReceiver(
     }
 
     private fun handleNoteOff(note: Int) {
-        val padPos = NoteMap.padForNote(note)
-        if (padPos != null) {
-            listener.onPadColorChange(note, LedPalette.OFF_COLOR)
-            return
-        }
+        // MatrixOS treats NoteOff same as NoteOn vel=0 — this also lets flicker reduction handle it
+        handleNoteOn(note, 0, currentPalette)
+    }
 
-        if (isEdgeNote(note)) {
-            listener.onEdgeColorChange(note, LedPalette.OFF_COLOR)
-        }
+    /**
+     * Call every ~16ms to process flicker reduction countdown expirations.
+     * Returns list of notes whose LEDs should now be turned off.
+     */
+    fun tickFlickerReduction(): List<Int> {
+        return flickerReduction.tick()
     }
 
     /**

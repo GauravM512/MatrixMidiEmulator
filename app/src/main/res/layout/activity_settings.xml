@@ -55,6 +55,15 @@
             android:textColor="#FFFFFF"
             app:useMaterialThemeColors="true" />
 
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/flickerReductionSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/setting_flicker_reduction"
+            android:textColor="#FFFFFF"
+            app:useMaterialThemeColors="true" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

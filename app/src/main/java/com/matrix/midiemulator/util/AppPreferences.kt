@@ -14,6 +14,7 @@ object AppPreferences {
     private const val KEY_ACTIVE_PALETTE_SLOT = "active_palette_slot"
     private const val KEY_PALETTE_IMPORT_SLOT = "palette_import_slot"
     private const val KEY_LED_BRIGHTNESS_PERCENT = "led_brightness_percent"
+    private const val KEY_FLICKER_REDUCTION_ENABLED = "flicker_reduction_enabled"
     private const val KEY_LANDSCAPE_PADS = "landscape_pads"
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -61,6 +62,14 @@ object AppPreferences {
 
     fun setLedBrightnessPercent(context: Context, percent: Int) {
         prefs(context).edit().putInt(KEY_LED_BRIGHTNESS_PERCENT, percent.coerceIn(0, 200)).apply()
+    }
+
+    fun isFlickerReductionEnabled(context: Context): Boolean {
+        return prefs(context).getBoolean(KEY_FLICKER_REDUCTION_ENABLED, true)
+    }
+
+    fun setFlickerReductionEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_FLICKER_REDUCTION_ENABLED, enabled).apply()
     }
 
     fun isLandscapePadsEnabled(context: Context): Boolean {
