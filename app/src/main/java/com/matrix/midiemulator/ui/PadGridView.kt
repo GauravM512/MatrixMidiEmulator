@@ -86,6 +86,7 @@ class PadGridView @JvmOverloads constructor(
     private var effectBrightnessScale = 1f
     private var layoutMode = GridLayoutMode.MYSTRIX
     private var showEdgeLights = true
+    private var redrawScheduled = false
 
     /** Callback for MIDI events */
     var onPadEventListener: PadEventListener? = null
@@ -99,6 +100,15 @@ class PadGridView @JvmOverloads constructor(
     init {
         val density = resources.displayMetrics.density
         gap = PAD_GAP * density
+    }
+
+    private fun scheduleRedraw() {
+        if (redrawScheduled) return
+        redrawScheduled = true
+        postOnAnimation {
+            redrawScheduled = false
+            invalidate()
+        }
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -814,7 +824,7 @@ class PadGridView @JvmOverloads constructor(
         val note = getPadForPosition(x, y) ?: return
         activePointerNotes[pointerId] = note
         pressNote(note, pressure)
-        invalidate()
+        scheduleRedraw()
     }
 
     private fun handleTouchMove(pointerId: Int, x: Float, y: Float, pressure: Float) {
@@ -828,7 +838,7 @@ class PadGridView @JvmOverloads constructor(
                 if (Math.abs(newPressure - oldPressure) > 2) {
                     padPressure[currentNote] = pressure
                     onPadEventListener?.onPadAftertouch(currentNote, newPressure)
-                    invalidate()
+                    scheduleRedraw()
                 }
             }
             return
@@ -845,13 +855,13 @@ class PadGridView @JvmOverloads constructor(
             activePointerNotes.remove(pointerId)
         }
 
-        invalidate()
+        scheduleRedraw()
     }
 
     private fun handleTouchUp(pointerId: Int) {
         val note = activePointerNotes.remove(pointerId) ?: return
         releaseNote(note)
-        invalidate()
+        scheduleRedraw()
     }
 
     private fun clearAllTouches() {
@@ -865,7 +875,7 @@ class PadGridView @JvmOverloads constructor(
                 onPadEventListener?.onPadRelease(note)
             }
         }
-        invalidate()
+        scheduleRedraw()
     }
 
     private fun pressNote(note: Int, pressure: Float) {
@@ -900,7 +910,7 @@ class PadGridView @JvmOverloads constructor(
             synchronized(colorLock) {
                 padColors[note] = color
             }
-            invalidate()
+            scheduleRedraw()
         }
     }
 
@@ -910,7 +920,7 @@ class PadGridView @JvmOverloads constructor(
     fun setEdgeSegmentColor(note: Int, color: Int) {
         if (note == 27) {
             cornerTopRightColor = color
-            invalidate()
+            scheduleRedraw()
             return
         }
 
@@ -919,13 +929,13 @@ class PadGridView @JvmOverloads constructor(
             synchronized(colorLock) {
                 edgeColors[index] = color
             }
-            invalidate()
+            scheduleRedraw()
         }
     }
 
     fun setLedBrightnessPercent(percent: Int) {
         effectBrightnessScale = percent.coerceIn(0, 200) / 100f
-        invalidate()
+        scheduleRedraw()
     }
 
     fun setEffectBrightnessPercent(percent: Int) {
@@ -936,12 +946,12 @@ class PadGridView @JvmOverloads constructor(
         layoutMode = if (enabled) GridLayoutMode.LAUNCHPAD_PRO else GridLayoutMode.MYSTRIX
         recomputeGridMetrics(width, height)
         requestLayout()
-        invalidate()
+        scheduleRedraw()
     }
 
     fun setShowEdgeLights(enabled: Boolean) {
         showEdgeLights = enabled
-        invalidate()
+        scheduleRedraw()
     }
 
     fun setLayoutMode(mode: Int) {
@@ -953,17 +963,17 @@ class PadGridView @JvmOverloads constructor(
         showEdgeLights = layoutMode == GridLayoutMode.MYSTRIX
         recomputeGridMetrics(width, height)
         requestLayout()
-        invalidate()
+        scheduleRedraw()
     }
 
     fun setPadBrightnessEnabled(@Suppress("UNUSED_PARAMETER") enabled: Boolean) {
         // Kept for compatibility; pad brightness now follows the unified light brightness.
-        invalidate()
+        scheduleRedraw()
     }
 
     fun setPadBrightnessPercent(@Suppress("UNUSED_PARAMETER") percent: Int) {
         // Kept for compatibility; use setEffectBrightnessPercent for unified behavior.
-        invalidate()
+        scheduleRedraw()
     }
 
     private fun mapNoteToEdgeSegmentIndex(note: Int): Int {
@@ -985,6 +995,6 @@ class PadGridView @JvmOverloads constructor(
             edgeColors.fill(LedPalette.OFF_COLOR)
         }
         cornerTopRightColor = LedPalette.OFF_COLOR
-        invalidate()
+        scheduleRedraw()
     }
 }
