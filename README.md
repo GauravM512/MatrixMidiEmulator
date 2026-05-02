@@ -48,6 +48,14 @@ An Android application that emulates a **Mystrix** hardware MIDI controller (by 
 - USB OTG support (for connecting to PC as MIDI peripheral)
 - USB cable that supports data transfer
 
+## Palettes
+
+The app comes with 2 built-in palettes:
+1. **mat1jaczzyyy**
+2. **App Default (Novation RGB)**
+
+To import additional palettes (upto 4), visit: https://palette.sihyunlights.com/
+
 ## How It Works
 
 ### Sending MIDI (Phone → PC)
