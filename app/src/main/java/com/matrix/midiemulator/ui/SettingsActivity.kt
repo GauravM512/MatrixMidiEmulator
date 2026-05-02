@@ -21,6 +21,7 @@ import com.matrix.midiemulator.util.AppPreferences
 import com.matrix.midiemulator.util.PaletteRuntime
 import com.matrix.midiemulator.util.PaletteSlot
 import com.matrix.midiemulator.util.PaletteStore
+import com.matrix.midiemulator.util.SystemUiMode
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
@@ -37,6 +38,7 @@ class SettingsActivity : AppCompatActivity() {
         supportActionBar?.title = getString(R.string.settings_title)
 
         val landscapePadsSwitch = findViewById<SwitchMaterial>(R.id.landscapePadsSwitch)
+        val immersiveModeSwitch = findViewById<SwitchMaterial>(R.id.immersiveModeSwitch)
         val showConnectionStatusSwitch = findViewById<SwitchMaterial>(R.id.showConnectionStatusSwitch)
         val flickerReductionSwitch = findViewById<SwitchMaterial>(R.id.flickerReductionSwitch)
         val layoutModeSpinner = findViewById<Spinner>(R.id.layoutModeSpinner)
@@ -51,6 +53,7 @@ class SettingsActivity : AppCompatActivity() {
         val brightnessPreviewGrid = findViewById<PadGridView>(R.id.brightnessPreviewGrid)
         appVersionText.text = getString(R.string.settings_version, getAppVersionName())
         landscapePadsSwitch.isChecked = AppPreferences.isLandscapePadsEnabled(this)
+        immersiveModeSwitch.isChecked = AppPreferences.isImmersiveModeEnabled(this)
         showConnectionStatusSwitch.isChecked = AppPreferences.isConnectionStatusVisible(this)
         flickerReductionSwitch.isChecked = AppPreferences.isFlickerReductionEnabled(this)
         val currentEffectBrightness = AppPreferences.getLedBrightnessPercent(this).coerceIn(0, 200)
@@ -104,6 +107,11 @@ class SettingsActivity : AppCompatActivity() {
 
         landscapePadsSwitch.setOnCheckedChangeListener { _, isChecked ->
             AppPreferences.setLandscapePadsEnabled(this, isChecked)
+        }
+
+        immersiveModeSwitch.setOnCheckedChangeListener { _, isChecked ->
+            AppPreferences.setImmersiveModeEnabled(this, isChecked)
+            SystemUiMode.applyImmersiveMode(this, isChecked)
         }
         
         showConnectionStatusSwitch.setOnCheckedChangeListener { _, isChecked ->
@@ -190,6 +198,11 @@ class SettingsActivity : AppCompatActivity() {
         importPaletteButton.setOnClickListener {
             openPaletteFile.launch(arrayOf("text/*", "*/*"))
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        SystemUiMode.applyImmersiveMode(this, AppPreferences.isImmersiveModeEnabled(this))
     }
 
     private companion object {

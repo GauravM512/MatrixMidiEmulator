@@ -22,6 +22,7 @@ import com.matrix.midiemulator.util.MidiMessageBuilder
 import com.matrix.midiemulator.util.NoteMap
 import com.matrix.midiemulator.util.PaletteSlot
 import com.matrix.midiemulator.util.PaletteStore
+import com.matrix.midiemulator.util.SystemUiMode
 
 /**
  * Main activity that displays the pad grid and manages the MIDI connection.
@@ -171,6 +172,8 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
     }
 
     private fun applyUserPreferences() {
+        SystemUiMode.applyImmersiveMode(this, AppPreferences.isImmersiveModeEnabled(this))
+
         val layoutMode = AppPreferences.getLayoutMode(this)
         val isLaunchpadLayout = layoutMode == AppPreferences.LAYOUT_MODE_LAUNCHPAD_PRO_MK2
         val isLaunchpadXLayout = layoutMode == AppPreferences.LAYOUT_MODE_LAUNCHPAD_X

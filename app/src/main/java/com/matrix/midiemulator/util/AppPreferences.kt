@@ -16,6 +16,7 @@ object AppPreferences {
     private const val KEY_LED_BRIGHTNESS_PERCENT = "led_brightness_percent"
     private const val KEY_FLICKER_REDUCTION_ENABLED = "flicker_reduction_enabled"
     private const val KEY_LANDSCAPE_PADS = "landscape_pads"
+    private const val KEY_IMMERSIVE_MODE = "immersive_mode"
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -78,6 +79,14 @@ object AppPreferences {
 
     fun setLandscapePadsEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(KEY_LANDSCAPE_PADS, enabled).apply()
+    }
+
+    fun isImmersiveModeEnabled(context: Context): Boolean {
+        return prefs(context).getBoolean(KEY_IMMERSIVE_MODE, false)
+    }
+
+    fun setImmersiveModeEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_IMMERSIVE_MODE, enabled).apply()
     }
 
     fun isConnectionStatusVisible(context: Context): Boolean {
