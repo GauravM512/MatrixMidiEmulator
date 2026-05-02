@@ -23,16 +23,16 @@ class MidiReceiver(
         private const val TAG = "MidiReceiver"
 
         val IDENTITY_REPLY = byteArrayOf(
-            0xF0.toByte(),       // SysEx Start
-            0x7E,                // Universal Non-Realtime  
-            0x7F,                // Device ID = 127
-            0x06,                // General Info
-            0x02,                // Identity Reply
-            0x00, 0x02, 0x03,    // Manufacturer: 203 Systems
-            0x4D, 0x58,          // Family: 'M' 'X'
-            0x11, 0x01,          // Model: Mystrix
-            0x01, 0x00, 0x00, 0x00, // Version 1.0.0 release
-            0xF7.toByte()        // SysEx End
+            0xF0.toByte(),          // SysEx Start
+            0x7E,                   // Universal Non-Realtime
+            0x7F,                   // Device ID (All Channels)
+            0x06,                   // General Info
+            0x02,                   // Identity Reply
+            0x00, 0x02, 0x03,       // Manufacturer: 203 Systems
+            0x4D, 0x58,             // Family: "MX" : Model ID ('M', 'X')
+            0x11, 0x01,             // Model: (0x11 = Mystrix Pro, 0x10 = Mystrix)
+            0x02, 0x04, 0x03, 0x00, // Version 2.4.3 release
+            0xF7.toByte()           // SysEx End
         )
 
         fun identityReplyBytes(): ByteArray = IDENTITY_REPLY.copyOf()
