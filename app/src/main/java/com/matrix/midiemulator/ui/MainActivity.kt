@@ -51,11 +51,12 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
         override fun run() {
             val service = MatrixMidiDeviceService.instance
             val bridge = usbBridge
-            if (service != null) {
-                val base = if (isConnected) getString(R.string.status_connected) else getString(R.string.status_disconnected)
-                val bridgeStats = bridge?.statsSnapshot() ?: "B_TX=0 B_RX=0 B_CAN_TX=false B_CAN_RX=false"
-                statusText.text = "$base | ${service.getStatsSnapshot()} | $bridgeStats"
-            }
+            
+            val statusLine = if (isConnected) getString(R.string.status_connected) else getString(R.string.status_disconnected)
+            val serviceStats = service?.getStatsSnapshot() ?: "Service: offline"
+            val bridgeStats = bridge?.statsSnapshot() ?: "Bridge: offline"
+            
+            statusText.text = "$statusLine\n$serviceStats | $bridgeStats"
             mainHandler.postDelayed(this, 500)
         }
     }

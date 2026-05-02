@@ -4,8 +4,10 @@ class FlickerReduction(
     private val stfuDelay: Int = 1
 ) {
     private val stfuMap = IntArray(128) { -1 }
+    @Volatile
     var enabled: Boolean = true
 
+    @Synchronized
     fun handleNoteOn(note: Int, velocity: Int): Boolean {
         if (!enabled) return true
 
@@ -28,6 +30,7 @@ class FlickerReduction(
         }
     }
 
+    @Synchronized
     fun tick(): List<Int> {
         if (!enabled) return emptyList()
 
@@ -44,6 +47,7 @@ class FlickerReduction(
         return notesToTurnOff
     }
 
+    @Synchronized
     fun clearAll() {
         stfuMap.fill(-1)
     }

@@ -65,7 +65,7 @@ object AppPreferences {
     }
 
     fun isFlickerReductionEnabled(context: Context): Boolean {
-        return prefs(context).getBoolean(KEY_FLICKER_REDUCTION_ENABLED, true)
+        return prefs(context).getBoolean(KEY_FLICKER_REDUCTION_ENABLED, false)
     }
 
     fun setFlickerReductionEnabled(context: Context, enabled: Boolean) {

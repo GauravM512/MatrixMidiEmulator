@@ -54,7 +54,11 @@ class PadGridView @JvmOverloads constructor(
     private val edgeColors = IntArray(EDGE_SEGMENT_COUNT) { LedPalette.OFF_COLOR }
 
     /** Launchpad top-right corner button (note 27) */
+    @Volatile
     private var cornerTopRightColor = LedPalette.OFF_COLOR
+
+    /** Lock to synchronize color array access between MIDI updates and rendering */
+    private val colorLock = Any()
 
     /** Whether each pad is currently pressed */
     private val padPressed = BooleanArray(128) { false }
@@ -159,12 +163,22 @@ class PadGridView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
+        // Snapshot color arrays under lock to ensure consistent reads during rendering
+        val padColorSnapshot: IntArray
+        val edgeColorSnapshot: IntArray
+        val cornerSnapshot: Int
+        synchronized(colorLock) {
+            padColorSnapshot = padColors.copyOf()
+            edgeColorSnapshot = edgeColors.copyOf()
+            cornerSnapshot = cornerTopRightColor
+        }
+
         if (layoutMode == GridLayoutMode.LAUNCHPAD_PRO) {
-            drawLaunchpadSideButtons(canvas)
+            drawLaunchpadSideButtons(canvas, cornerSnapshot, edgeColorSnapshot)
         } else if (layoutMode == GridLayoutMode.LAUNCHPAD_X) {
-            drawLaunchpadXButtons(canvas)
+            drawLaunchpadXButtons(canvas, cornerSnapshot, edgeColorSnapshot)
         } else if (showEdgeLights) {
-            drawEdgeBacklight(canvas)
+            drawEdgeBacklight(canvas, edgeColorSnapshot)
         }
 
         for (row in 0 until GRID_ROWS) {
@@ -175,13 +189,13 @@ class PadGridView @JvmOverloads constructor(
 
                 padRect.set(left, top, left + cellWidth, top + cellHeight)
 
-                val litPadColor = applyPadBrightness(padColors[note])
+                val litPadColor = applyPadBrightness(padColorSnapshot[note])
                 val radius = if (layoutMode == GridLayoutMode.LAUNCHPAD_X) 0f else 8f * resources.displayMetrics.density
                 val cx = padRect.centerX()
                 val cy = padRect.centerY()
 
                 val padScale = currentPadBrightnessScale()
-                if (padScale > 1f && padColors[note] != LedPalette.OFF_COLOR) {
+                if (padScale > 1f && padColorSnapshot[note] != LedPalette.OFF_COLOR) {
                     val boost = (padScale - 1f).coerceIn(0f, 1f)
                     val bloomRadius = (maxOf(cellWidth, cellHeight) * (0.62f + boost * 0.75f)).coerceAtLeast(1f)
                     val bloomAlpha = (34 + boost * 104f).toInt().coerceIn(0, 255)
@@ -316,7 +330,7 @@ class PadGridView @JvmOverloads constructor(
         }
     }
 
-    private fun drawLaunchpadSideButtons(canvas: Canvas) {
+    private fun drawLaunchpadSideButtons(canvas: Canvas, cornerColor: Int, edgeColors: IntArray) {
         val topY = gridInnerTop() - edgeButtonRadius - gap * 0.8f
         val bottomY = gridInnerBottom() + edgeButtonRadius + gap * 0.8f
         val leftX = gridInnerLeft() - edgeButtonRadius - gap * 0.8f
@@ -325,52 +339,52 @@ class PadGridView @JvmOverloads constructor(
         // Top: notes 28..35, left -> right
         for (i in 0 until GRID_COLS) {
             val cx = padLeftForCol(i) + cellWidth / 2f
-            drawLaunchpadSideButton(canvas, 28 + i, cx, topY)
+            drawLaunchpadSideButton(canvas, 28 + i, cx, topY, cornerColor, edgeColors)
         }
 
         // Bottom: notes 116..123, left -> right
         for (i in 0 until GRID_COLS) {
             val cx = padLeftForCol(i) + cellWidth / 2f
-            drawLaunchpadSideButton(canvas, 116 + i, cx, bottomY)
+            drawLaunchpadSideButton(canvas, 116 + i, cx, bottomY, cornerColor, edgeColors)
         }
 
         // Left: notes 108..115, top -> bottom
         for (i in 0 until GRID_ROWS) {
             val cy = gridInnerTop() + i * (cellHeight + gap) + cellHeight / 2f
-            drawLaunchpadSideButton(canvas, 108 + i, leftX, cy)
+            drawLaunchpadSideButton(canvas, 108 + i, leftX, cy, cornerColor, edgeColors)
         }
 
         // Right: notes 100..107, top -> bottom
         for (i in 0 until GRID_ROWS) {
             val cy = gridInnerTop() + i * (cellHeight + gap) + cellHeight / 2f
-            drawLaunchpadSideButton(canvas, 100 + i, rightX, cy)
+            drawLaunchpadSideButton(canvas, 100 + i, rightX, cy, cornerColor, edgeColors)
         }
 
         // Top-right corner: note 27
-        drawLaunchpadSideButton(canvas, 27, rightX, topY)
+        drawLaunchpadSideButton(canvas, 27, rightX, topY, cornerColor, edgeColors)
     }
 
-    private fun drawLaunchpadXButtons(canvas: Canvas) {
+    private fun drawLaunchpadXButtons(canvas: Canvas, cornerColor: Int, edgeColors: IntArray) {
         val top = gap
         val right = gridInnerRight() + gap
 
         for (i in 0 until GRID_COLS) {
             val left = padLeftForCol(i)
-            drawLaunchpadXButton(canvas, 28 + i, left, top)
+            drawLaunchpadXButton(canvas, 28 + i, left, top, cornerColor, edgeColors)
         }
 
         for (i in 0 until GRID_ROWS) {
             val topForButton = gridInnerTop() + i * (cellHeight + gap)
-            drawLaunchpadXButton(canvas, 100 + i, right, topForButton)
+            drawLaunchpadXButton(canvas, 100 + i, right, topForButton, cornerColor, edgeColors)
         }
 
-        drawLaunchpadXButton(canvas, 27, right, top)
+        drawLaunchpadXButton(canvas, 27, right, top, cornerColor, edgeColors)
     }
 
-    private fun drawLaunchpadXButton(canvas: Canvas, note: Int, left: Float, top: Float) {
+    private fun drawLaunchpadXButton(canvas: Canvas, note: Int, left: Float, top: Float, cornerColor: Int, edgeColors: IntArray) {
         val index = mapNoteToEdgeSegmentIndex(note)
         val edgeColor = when {
-            note == 27 -> cornerTopRightColor
+            note == 27 -> cornerColor
             index != -1 -> edgeColors[index]
             else -> LedPalette.OFF_COLOR
         }
@@ -424,10 +438,10 @@ class PadGridView @JvmOverloads constructor(
         }
     }
 
-    private fun drawLaunchpadSideButton(canvas: Canvas, note: Int, cx: Float, cy: Float) {
+    private fun drawLaunchpadSideButton(canvas: Canvas, note: Int, cx: Float, cy: Float, cornerColor: Int, edgeColors: IntArray) {
         val index = mapNoteToEdgeSegmentIndex(note)
         val edgeColor = when {
-            note == 27 -> cornerTopRightColor
+            note == 27 -> cornerColor
             index != -1 -> edgeColors[index]
             else -> LedPalette.OFF_COLOR
         }
@@ -512,7 +526,7 @@ class PadGridView @JvmOverloads constructor(
         }
     }
 
-    private fun drawEdgeBacklight(canvas: Canvas) {
+    private fun drawEdgeBacklight(canvas: Canvas, edgeColors: IntArray) {
         val edgeBand = gap
         val leftMost = gap
         val rightMost = leftMost + GRID_COLS * cellWidth + (GRID_COLS - 1) * gap
@@ -883,7 +897,9 @@ class PadGridView @JvmOverloads constructor(
      */
     fun setPadColor(note: Int, color: Int) { // This is for the 8x8 grid pads
         if (note in 36..99) {
-            padColors[note] = color
+            synchronized(colorLock) {
+                padColors[note] = color
+            }
             invalidate()
         }
     }
@@ -900,7 +916,9 @@ class PadGridView @JvmOverloads constructor(
 
         val index = mapNoteToEdgeSegmentIndex(note)
         if (index != -1) {
-            edgeColors[index] = color
+            synchronized(colorLock) {
+                edgeColors[index] = color
+            }
             invalidate()
         }
     }
@@ -962,8 +980,10 @@ class PadGridView @JvmOverloads constructor(
      * Clear all pad colors.
      */
     fun clearAll() {
-        padColors.fill(LedPalette.OFF_COLOR)
-        edgeColors.fill(LedPalette.OFF_COLOR)
+        synchronized(colorLock) {
+            padColors.fill(LedPalette.OFF_COLOR)
+            edgeColors.fill(LedPalette.OFF_COLOR)
+        }
         cornerTopRightColor = LedPalette.OFF_COLOR
         invalidate()
     }
