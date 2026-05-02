@@ -1,10 +1,14 @@
 package com.matrix.midiemulator.ui
 
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.MenuItem
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.ImageButton
 import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.TextView
@@ -40,9 +44,12 @@ class SettingsActivity : AppCompatActivity() {
         val paletteImportSlotSpinner = findViewById<Spinner>(R.id.paletteImportSlotSpinner)
         val importPaletteButton = findViewById<Button>(R.id.importPaletteButton)
         val resetBrightnessButton = findViewById<Button>(R.id.resetBrightnessButton)
+        val githubButton = findViewById<ImageButton>(R.id.githubButton)
+        val appVersionText = findViewById<TextView>(R.id.appVersionText)
         val brightnessSeekBar = findViewById<SeekBar>(R.id.brightnessSeekBar)
         val brightnessValueText = findViewById<TextView>(R.id.brightnessValueText)
         val brightnessPreviewGrid = findViewById<PadGridView>(R.id.brightnessPreviewGrid)
+        appVersionText.text = getString(R.string.settings_version, getAppVersionName())
         landscapePadsSwitch.isChecked = AppPreferences.isLandscapePadsEnabled(this)
         showConnectionStatusSwitch.isChecked = AppPreferences.isConnectionStatusVisible(this)
         flickerReductionSwitch.isChecked = AppPreferences.isFlickerReductionEnabled(this)
@@ -91,6 +98,10 @@ class SettingsActivity : AppCompatActivity() {
         }
         paletteImportSlotSpinner.setSelection(AppPreferences.getPaletteImportSlot(this) - 1)
 
+        githubButton.setOnClickListener {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_URL)))
+        }
+
         landscapePadsSwitch.setOnCheckedChangeListener { _, isChecked ->
             AppPreferences.setLandscapePadsEnabled(this, isChecked)
         }
@@ -106,6 +117,7 @@ class SettingsActivity : AppCompatActivity() {
         layoutModeSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>, view: android.view.View?, position: Int, id: Long) {
                 if (suppressLayoutModeChange) return
+                if (AppPreferences.getLayoutMode(this@SettingsActivity) == position) return
                 AppPreferences.setLayoutMode(this@SettingsActivity, position)
                 Toast.makeText(this@SettingsActivity, getString(R.string.setting_layout_mode_success, layoutModes[position]), Toast.LENGTH_SHORT).show()
             }
@@ -135,6 +147,7 @@ class SettingsActivity : AppCompatActivity() {
         paletteSourceSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>, view: android.view.View?, position: Int, id: Long) {
                 if (suppressSourceChange) return
+                if (AppPreferences.getActivePaletteSlot(this@SettingsActivity) == position) return
                 AppPreferences.setActivePaletteSlot(this@SettingsActivity, position)
                 PaletteStore.applySelectedPalette(this@SettingsActivity)
                 Toast.makeText(this@SettingsActivity, getString(R.string.setting_palette_source_success, paletteSources[position]), Toast.LENGTH_SHORT).show()
@@ -145,6 +158,7 @@ class SettingsActivity : AppCompatActivity() {
 
         paletteImportSlotSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>, view: android.view.View?, position: Int, id: Long) {
+                if (AppPreferences.getPaletteImportSlot(this@SettingsActivity) == position + 1) return
                 AppPreferences.setPaletteImportSlot(this@SettingsActivity, position + 1)
             }
 
@@ -176,6 +190,20 @@ class SettingsActivity : AppCompatActivity() {
         importPaletteButton.setOnClickListener {
             openPaletteFile.launch(arrayOf("text/*", "*/*"))
         }
+    }
+
+    private companion object {
+        const val GITHUB_URL = "https://github.com/GauravM512/MystrixMidiEmulator"
+    }
+
+    private fun getAppVersionName(): String {
+        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(packageName, 0)
+        }
+        return packageInfo.versionName ?: ""
     }
 
     private fun setupBrightnessPreview(previewGrid: PadGridView) {
