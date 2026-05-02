@@ -42,6 +42,7 @@ class MidiReceiver(
         private const val SYSEX_BATCH = 0x5F
         private const val SYSEX_START = 0xF0.toByte()
         private const val SYSEX_END = 0xF7.toByte()
+        private const val MATRIX_PAYLOAD_START = 7
     }
 
     private var sysExBuffer = mutableListOf<Byte>()
@@ -238,7 +239,7 @@ class MidiReceiver(
             return
         }
 
-        if (data.size > 5 && data[1] == 0x00.toByte() && data[2] == 0x02.toByte() && data[3] == 0x03.toByte()) {
+        if (isMatrixSysEx(data)) {
             processMatrixSysEx(data)
             return
         }
@@ -246,8 +247,8 @@ class MidiReceiver(
         val manufacturer = data[1].toInt() and 0xFF
 
         when (manufacturer) {
-            SYSEX_MANUFACTURER -> processSysEx5E(data)
-            SYSEX_BATCH -> processSysEx5F(data)
+            SYSEX_MANUFACTURER -> processSysEx5E(data, payloadStart = 2, usesGridIndexes = false)
+            SYSEX_BATCH -> processSysEx5F(data, payloadStart = 2, usesGridIndexes = false)
             else -> Log.w(TAG, "Unknown SysEx manufacturer: 0x${manufacturer.toString(16)}")
         }
     }
@@ -257,60 +258,72 @@ class MidiReceiver(
      * Format: F0 5E <note><R6><G6><B6> <note><R6><G6><B6> ... F7
      * Each group is 4 bytes: note index + 6-bit RGB
      */
-    private fun processSysEx5E(data: ByteArray) {
-        // Data starts after F0 5E, ends before F7
-        var i = 2
+    private fun processSysEx5E(
+        data: ByteArray,
+        payloadStart: Int,
+        usesGridIndexes: Boolean
+    ) {
+        processDirectFill(data, payloadStart, usesGridIndexes)
+    }
+
+    /**
+     * Apollo SysEx 0x5F — Batch fill.
+     *
+     * This app currently handles the direct 4-byte RGB fill form used by MatrixOS:
+     * <note/index><R6><G6><B6>. If compressed/RLE 0x5F data appears later, decode it here
+     * and keep processDirectFill() as the shared final dispatch path.
+     */
+    private fun processSysEx5F(
+        data: ByteArray,
+        payloadStart: Int,
+        usesGridIndexes: Boolean
+    ) {
+        processDirectFill(data, payloadStart, usesGridIndexes)
+    }
+
+    private fun processDirectFill(
+        data: ByteArray,
+        payloadStart: Int,
+        usesGridIndexes: Boolean
+    ) {
+        var i = payloadStart
         while (i + 3 < data.size - 1) { // -1 for F7
-            val note = data[i].toInt() and 0xFF
+            val index = data[i].toInt() and 0xFF
             val r6 = data[i + 1].toInt() and 0x3F
             val g6 = data[i + 2].toInt() and 0x3F
             val b6 = data[i + 3].toInt() and 0x3F
 
             val color = LedPalette.sixBitToColor(r6, g6, b6)
 
-            val padPos = NoteMap.padForNote(note)
-            if (padPos != null) {
-                listener.onPadColorChange(note, color)
-            } else {
-                // Check if it's an edge note
-                if (isEdgeNote(note)) {
-                    listener.onEdgeColorChange(note, color)
-                }
-            }
+            dispatchDirectColor(index, color, usesGridIndexes)
 
             i += 4
         }
     }
 
-    /**
-     * Apollo SysEx 0x5F — Batch fill with optional RLE.
-     * Simplified implementation: treat as sequential 4-byte groups like 0x5E.
-     * Full RLE support can be added later.
-     */
-    private fun processSysEx5F(data: ByteArray) {
-        // For now, process similarly to 0x5E
-        // Full RLE decoding would require more complex parsing
-        var i = 2
-        while (i + 3 < data.size - 1) {
-            val note = data[i].toInt() and 0xFF
-            val r6 = data[i + 1].toInt() and 0x3F
-            val g6 = data[i + 2].toInt() and 0x3F
-            val b6 = data[i + 3].toInt() and 0x3F
-
-            val color = LedPalette.sixBitToColor(r6, g6, b6)
-
-            val padPos = NoteMap.padForNote(note)
-            if (padPos != null) {
-                listener.onPadColorChange(note, color)
-            } else {
-                // Check if it's an edge note
-                if (isEdgeNote(note)) {
-                    listener.onEdgeColorChange(note, color)
-                }
-            }
-
-            i += 4
+    private fun dispatchDirectColor(index: Int, color: Int, usesGridIndexes: Boolean) {
+        val note = if (usesGridIndexes) {
+            noteForMatrixLedIndex(index) ?: index
+        } else {
+            index
         }
+
+        val padPos = NoteMap.padForNote(note)
+        if (padPos != null) {
+            listener.onPadColorChange(note, color)
+            return
+        }
+
+        if (isEdgeNote(note)) {
+            listener.onEdgeColorChange(note, color)
+        }
+    }
+
+    private fun noteForMatrixLedIndex(index: Int): Int? {
+        val col = index % 10
+        val row = index / 10
+        if (col !in 1..NoteMap.GRID_COLS || row !in 1..NoteMap.GRID_ROWS) return null
+        return NoteMap.noteForPad(col - 1, row - 1)
     }
 
     private val paletteUploads = mutableMapOf<Int, IntArray>()
@@ -319,6 +332,22 @@ class MidiReceiver(
     private fun processMatrixSysEx(data: ByteArray) {
         if (data.size < 8) return
         if (data[4] != 0x4D.toByte() || data[5] != 0x58.toByte()) return
+
+        when (data[6].toInt() and 0xFF) {
+            SYSEX_MANUFACTURER -> {
+                if (isMatrixPreviewClear(data)) {
+                    flickerReduction.clearAll()
+                    listener.onClearAll()
+                    return
+                }
+                processSysEx5E(data, payloadStart = MATRIX_PAYLOAD_START, usesGridIndexes = true)
+                return
+            }
+            SYSEX_BATCH -> {
+                processSysEx5F(data, payloadStart = MATRIX_PAYLOAD_START, usesGridIndexes = true)
+                return
+            }
+        }
 
         if (data[6] != 0x41.toByte()) return
 
@@ -391,5 +420,21 @@ class MidiReceiver(
             data[3] == 0x06.toByte() &&
             data[4] == 0x01.toByte() &&
             data[5] == SYSEX_END
+    }
+
+    private fun isMatrixSysEx(data: ByteArray): Boolean {
+        return data.size > 6 &&
+            data[1] == 0x00.toByte() &&
+            data[2] == 0x02.toByte() &&
+            data[3] == 0x03.toByte()
+    }
+
+    private fun isMatrixPreviewClear(data: ByteArray): Boolean {
+        return data.size == 12 &&
+            data[7] == 0x00.toByte() &&
+            data[8] == 0x00.toByte() &&
+            data[9] == 0x00.toByte() &&
+            data[10] == 0x00.toByte() &&
+            data[11] == SYSEX_END
     }
 }

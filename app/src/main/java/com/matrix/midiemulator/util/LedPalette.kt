@@ -1,8 +1,5 @@
 package com.matrix.midiemulator.util
 
-import android.graphics.Color
-import kotlin.math.roundToInt
-
 /**
  * The 128-color default palette used by MatrixOS for note-based LED feedback.
  * When the host sends NoteOn(note, velocity) to set a pad color, the velocity
@@ -30,9 +27,6 @@ object LedPalette {
      * Used for Apollo SysEx color data.
      */
     fun sixBitToColor(r6: Int, g6: Int, b6: Int): Int {
-        val r = (r6.coerceIn(0, 63) * 255f / 63f).roundToInt()
-        val g = (g6.coerceIn(0, 63) * 255f / 63f).roundToInt()
-        val b = (b6.coerceIn(0, 63) * 255f / 63f).roundToInt()
-        return Color.rgb(r, g, b)
+        return PaletteRuntime.getDirectColor(r6, g6, b6)
     }
 }

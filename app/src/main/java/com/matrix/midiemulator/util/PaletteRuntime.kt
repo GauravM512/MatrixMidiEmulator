@@ -25,6 +25,17 @@ object PaletteRuntime {
         return if (isCustomPalette) applyGamma(color) else color
     }
 
+    fun getDirectColor(r6: Int, g6: Int, b6: Int): Int {
+        if (r6 == 0 && g6 == 0 && b6 == 0) return OFF_COLOR
+        return applyGamma(
+            Color.rgb(
+                expand6bit(r6),
+                expand6bit(g6),
+                expand6bit(b6)
+            )
+        )
+    }
+
     fun snapshot(): IntArray {
         return activeColors.copyOf()
     }
@@ -41,6 +52,11 @@ object PaletteRuntime {
             converted[i] = 0xFF000000.toInt() or (src and 0x00FFFFFF)
         }
         return converted
+    }
+
+    private fun expand6bit(value: Int): Int {
+        val v = value.coerceIn(0, 63)
+        return (v shl 2) + (v shr 4)
     }
 
     private fun applyGamma(color: Int): Int {
