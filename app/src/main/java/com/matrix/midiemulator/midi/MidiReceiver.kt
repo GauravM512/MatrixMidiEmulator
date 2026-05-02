@@ -2,6 +2,7 @@ package com.matrix.midiemulator.midi
 
 import android.media.midi.MidiReceiver as AndroidMidiReceiver
 import android.util.Log
+import com.matrix.midiemulator.util.ApolloIndex
 import com.matrix.midiemulator.util.FlickerReduction
 import com.matrix.midiemulator.util.LedPalette
 import com.matrix.midiemulator.util.NoteMap
@@ -269,16 +270,53 @@ class MidiReceiver(
     /**
      * Apollo SysEx 0x5F — Batch fill.
      *
-     * This app currently handles the direct 4-byte RGB fill form used by MatrixOS:
-     * <note/index><R6><G6><B6>. If compressed/RLE 0x5F data appears later, decode it here
-     * and keep processDirectFill() as the shared final dispatch path.
+     * Format: <R><G><B> <index>... where bit 6 of R/G/B encodes how many
+     * Apollo indices follow. If that count is 0, the next byte is the count.
      */
     private fun processSysEx5F(
         data: ByteArray,
         payloadStart: Int,
         usesGridIndexes: Boolean
     ) {
-        processDirectFill(data, payloadStart, usesGridIndexes)
+        processBatchFill(data, payloadStart, usesGridIndexes)
+    }
+
+    private fun processBatchFill(
+        data: ByteArray,
+        payloadStart: Int,
+        usesGridIndexes: Boolean
+    ) {
+        val payloadEnd = data.size - 1
+        var i = payloadStart
+
+        while (i + 3 < payloadEnd) {
+            val rRaw = data[i].toInt() and 0x7F
+            val gRaw = data[i + 1].toInt() and 0x7F
+            val bRaw = data[i + 2].toInt() and 0x7F
+
+            val r6 = rRaw and 0x3F
+            val g6 = gRaw and 0x3F
+            val b6 = bRaw and 0x3F
+            val color = LedPalette.sixBitToColor(r6, g6, b6)
+
+            var indexCount = ((rRaw and 0x40) shr 4) or
+                ((gRaw and 0x40) shr 5) or
+                ((bRaw and 0x40) shr 6)
+            i += 3
+
+            if (indexCount == 0) {
+                if (i >= payloadEnd) break
+                indexCount = data[i].toInt() and 0x7F
+                i++
+            }
+
+            repeat(indexCount) {
+                if (i >= payloadEnd) return
+                val index = data[i].toInt() and 0x7F
+                dispatchDirectColor(index, color, usesGridIndexes)
+                i++
+            }
+        }
     }
 
     private fun processDirectFill(
@@ -302,12 +340,22 @@ class MidiReceiver(
     }
 
     private fun dispatchDirectColor(index: Int, color: Int, usesGridIndexes: Boolean) {
-        val note = if (usesGridIndexes) {
-            noteForMatrixLedIndex(index) ?: index
-        } else {
-            index
+        if (usesGridIndexes) {
+            dispatchApolloColor(index, color)
+            return
         }
 
+        dispatchNoteColor(index, color)
+    }
+
+    private fun dispatchApolloColor(index: Int, color: Int) {
+        val notes = notesForApolloIndex(index)
+        for (note in notes) {
+            dispatchNoteColor(note, color)
+        }
+    }
+
+    private fun dispatchNoteColor(note: Int, color: Int) {
         val padPos = NoteMap.padForNote(note)
         if (padPos != null) {
             listener.onPadColorChange(note, color)
@@ -319,11 +367,35 @@ class MidiReceiver(
         }
     }
 
-    private fun noteForMatrixLedIndex(index: Int): Int? {
-        val col = index % 10
-        val row = index / 10
-        if (col !in 1..NoteMap.GRID_COLS || row !in 1..NoteMap.GRID_ROWS) return null
-        return NoteMap.noteForPad(col - 1, row - 1)
+    private fun notesForApolloIndex(index: Int): List<Int> {
+        if (index == 0) return allLedNotes()
+
+        if (ApolloIndex.isRowFill(index)) {
+            val row = ApolloIndex.rowFillRow(index)
+            return (0 until NoteMap.GRID_COLS).map { col -> NoteMap.noteForPad(col, row) }
+        }
+
+        if (ApolloIndex.isColumnFill(index)) {
+            val col = ApolloIndex.columnFillColumn(index)
+            return (0 until NoteMap.GRID_ROWS).map { row -> NoteMap.noteForPad(col, row) }
+        }
+
+        return ApolloIndex.toNote(index)?.let { listOf(it) } ?: emptyList()
+    }
+
+    private fun allLedNotes(): List<Int> {
+        val notes = mutableListOf<Int>()
+        for (row in 0 until NoteMap.GRID_ROWS) {
+            for (col in 0 until NoteMap.GRID_COLS) {
+                notes.add(NoteMap.noteForPad(col, row))
+            }
+        }
+        notes.add(27)
+        notes.addAll(28..35)
+        notes.addAll(100..107)
+        notes.addAll(108..115)
+        notes.addAll(116..123)
+        return notes
     }
 
     private val paletteUploads = mutableMapOf<Int, IntArray>()
