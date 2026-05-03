@@ -2,6 +2,7 @@ package com.matrix.midiemulator.midi
 
 import android.media.midi.MidiReceiver as AndroidMidiReceiver
 import android.util.Log
+import com.matrix.midiemulator.util.AppPreferences
 import com.matrix.midiemulator.util.ApolloIndex
 import com.matrix.midiemulator.util.FlickerReduction
 import com.matrix.midiemulator.util.LedPalette
@@ -47,7 +48,15 @@ class MidiReceiver(
             0x00, 0x00,             // Family Member
             0x00, 0x63, 0x66, 0x79, // Version: "cfy" (CFW+++)
             0xF7.toByte()           // SysEx End
-        )
+)
+
+        fun identityReplyBytes(context: android.content.Context): ByteArray {
+            return if (AppPreferences.isLaunchpadIdentityEnabled(context)) {
+                IDENTITY_REPLY_LAUNCHPAD_CFW.copyOf()
+            } else {
+                IDENTITY_REPLY.copyOf()
+            }
+        }
 
         fun identityReplyBytes(): ByteArray = IDENTITY_REPLY.copyOf()
 

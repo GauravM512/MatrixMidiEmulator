@@ -124,6 +124,15 @@
                     android:textSize="15sp"
                     app:useMaterialThemeColors="true" />
 
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/launchpadIdentitySwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/setting_launchpad_identity"
+                    android:textColor="#F6F7FB"
+                    android:textSize="15sp"
+                    app:useMaterialThemeColors="true" />
+
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"

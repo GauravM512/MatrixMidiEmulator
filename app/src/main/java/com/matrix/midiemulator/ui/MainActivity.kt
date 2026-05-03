@@ -326,6 +326,6 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
     }
 
     override fun onIdentityRequest() {
-        sendToHost(MidiReceiver.identityReplyBytes())
+        sendToHost(MidiReceiver.identityReplyBytes(this))
     }
 }

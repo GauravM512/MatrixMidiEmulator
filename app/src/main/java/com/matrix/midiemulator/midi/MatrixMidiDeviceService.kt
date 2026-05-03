@@ -42,7 +42,7 @@ class MatrixMidiDeviceService : MidiDeviceService() {
         }
 
         override fun onIdentityRequest() {
-            sendToHost(MidiReceiver.identityReplyBytes())
+            sendToHost(MidiReceiver.identityReplyBytes(this@MatrixMidiDeviceService))
         }
 
         override fun onClearAll() {

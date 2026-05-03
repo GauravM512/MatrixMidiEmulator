@@ -17,6 +17,7 @@ object AppPreferences {
     private const val KEY_FLICKER_REDUCTION_ENABLED = "flicker_reduction_enabled"
     private const val KEY_LANDSCAPE_PADS = "landscape_pads"
     private const val KEY_IMMERSIVE_MODE = "immersive_mode"
+    private const val KEY_LAUNCHPAD_CFW_IDENTITY = "launchpad_cfw_identity"
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -87,6 +88,14 @@ object AppPreferences {
 
     fun setImmersiveModeEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(KEY_IMMERSIVE_MODE, enabled).apply()
+    }
+
+    fun isLaunchpadIdentityEnabled(context: Context): Boolean {
+        return prefs(context).getBoolean(KEY_LAUNCHPAD_CFW_IDENTITY, false)
+    }
+
+    fun setLaunchpadIdentityEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_LAUNCHPAD_CFW_IDENTITY, enabled).apply()
     }
 
     fun isConnectionStatusVisible(context: Context): Boolean {

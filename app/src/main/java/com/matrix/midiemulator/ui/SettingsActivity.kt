@@ -41,6 +41,7 @@ class SettingsActivity : AppCompatActivity() {
         val immersiveModeSwitch = findViewById<SwitchMaterial>(R.id.immersiveModeSwitch)
         val showConnectionStatusSwitch = findViewById<SwitchMaterial>(R.id.showConnectionStatusSwitch)
         val flickerReductionSwitch = findViewById<SwitchMaterial>(R.id.flickerReductionSwitch)
+        val launchpadIdentitySwitch = findViewById<SwitchMaterial>(R.id.launchpadIdentitySwitch)
         val layoutModeSpinner = findViewById<Spinner>(R.id.layoutModeSpinner)
         val paletteSourceSpinner = findViewById<Spinner>(R.id.paletteSourceSpinner)
         val paletteImportSlotSpinner = findViewById<Spinner>(R.id.paletteImportSlotSpinner)
@@ -56,6 +57,7 @@ class SettingsActivity : AppCompatActivity() {
         immersiveModeSwitch.isChecked = AppPreferences.isImmersiveModeEnabled(this)
         showConnectionStatusSwitch.isChecked = AppPreferences.isConnectionStatusVisible(this)
         flickerReductionSwitch.isChecked = AppPreferences.isFlickerReductionEnabled(this)
+        launchpadIdentitySwitch.isChecked = AppPreferences.isLaunchpadIdentityEnabled(this)
         val currentEffectBrightness = AppPreferences.getLedBrightnessPercent(this).coerceIn(0, 200)
         setupBrightnessPreview(brightnessPreviewGrid)
         brightnessPreviewGrid.setEffectBrightnessPercent(currentEffectBrightness)
@@ -120,6 +122,10 @@ class SettingsActivity : AppCompatActivity() {
 
         flickerReductionSwitch.setOnCheckedChangeListener { _, isChecked ->
             AppPreferences.setFlickerReductionEnabled(this, isChecked)
+        }
+
+        launchpadIdentitySwitch.setOnCheckedChangeListener { _, isChecked ->
+            AppPreferences.setLaunchpadIdentityEnabled(this, isChecked)
         }
 
         layoutModeSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
