@@ -966,15 +966,6 @@ class PadGridView @JvmOverloads constructor(
         scheduleRedraw()
     }
 
-    fun setPadBrightnessEnabled(@Suppress("UNUSED_PARAMETER") enabled: Boolean) {
-        // Kept for compatibility; pad brightness now follows the unified light brightness.
-        scheduleRedraw()
-    }
-
-    fun setPadBrightnessPercent(@Suppress("UNUSED_PARAMETER") percent: Int) {
-        // Kept for compatibility; use setEffectBrightnessPercent for unified behavior.
-        scheduleRedraw()
-    }
 
     private fun mapNoteToEdgeSegmentIndex(note: Int): Int {
         return when (note) {

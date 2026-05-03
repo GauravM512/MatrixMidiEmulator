@@ -36,6 +36,19 @@ class MidiReceiver(
             0xF7.toByte()           // SysEx End
         )
 
+        val IDENTITY_REPLY_LAUNCHPAD_CFW = byteArrayOf(
+            0xF0.toByte(),          // SysEx Start
+            0x7E,                   // Universal Non-Realtime
+            0x00,                   // Device ID
+            0x06,                   // General Info
+            0x02,                   // Identity Reply
+            0x00, 0x20, 0x29,       // Manufacturer: Novation/Focusrite
+            0x51, 0x00,             // Family: Launchpad Pro
+            0x00, 0x00,             // Family Member
+            0x00, 0x63, 0x66, 0x79, // Version: "cfy" (CFW+++)
+            0xF7.toByte()           // SysEx End
+        )
+
         fun identityReplyBytes(): ByteArray = IDENTITY_REPLY.copyOf()
 
         // SysEx manufacturer ID for Apollo/Matrix
