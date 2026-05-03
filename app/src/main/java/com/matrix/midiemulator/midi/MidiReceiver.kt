@@ -14,8 +14,11 @@ import com.matrix.midiemulator.util.PaletteRuntime
  *
  * Supported protocols:
  * 1. Note-based palette: NoteOn(note, velocity) → velocity indexes 128-color palette
- * 2. Apollo SysEx 0x5E: Regular fill with 6-bit RGB per LED
- * 3. Apollo SysEx 0x5F: Batch fill with RLE encoding
+ * 2. Apollo SysEx 0x5E: Regular fill with 6-bit RGB per LED (Mystrix, via MatrixOS header)
+ * 3. Apollo SysEx 0x5F: Batch fill with RLE encoding (Mystrix, via MatrixOS header)
+ * 4. CFW SysEx 0x6F: Launchpad Pro CFW direct fill with 6-bit RGB per LED (XY indices)
+ * 5. CFW SysEx 0x5F: Launchpad Pro CFW batch fill with RLE encoding (standalone, XY indices)
+ * 6. Novation Pro Clear: F0 00 20 29 02 10 0E 00 F7 (LED clear for CFW)
  */
 class MidiReceiver(
     private val listener: MidiLedListener
@@ -63,6 +66,7 @@ class MidiReceiver(
         // SysEx manufacturer ID for Apollo/Matrix
         private const val SYSEX_MANUFACTURER = 0x5E
         private const val SYSEX_BATCH = 0x5F
+        private const val SYSEX_CFW_DIRECT = 0x6F   // Launchpad Pro CFW direct fill header
         private const val SYSEX_START = 0xF0.toByte()
         private const val SYSEX_END = 0xF7.toByte()
         private const val MATRIX_PAYLOAD_START = 7
@@ -267,11 +271,21 @@ class MidiReceiver(
             return
         }
 
+        // CFW (Launchpad Pro Custom Firmware) clear command from Novation
+        if (isNovationClear(data)) {
+            flickerReduction.clearAll()
+            listener.onClearAll()
+            return
+        }
+
         val manufacturer = data[1].toInt() and 0xFF
 
         when (manufacturer) {
             SYSEX_MANUFACTURER -> processSysEx5E(data, payloadStart = 2, usesGridIndexes = false)
-            SYSEX_BATCH -> processSysEx5F(data, payloadStart = 2, usesGridIndexes = false)
+            // CFW sends standalone F0 5F with XY indices (same as MatrixOS batch format)
+            SYSEX_BATCH -> processSysEx5F(data, payloadStart = 2, usesGridIndexes = true)
+            // CFW direct fill: F0 6F <xy_index><R6><G6><B6>...F7 — uses Apollo XY indices
+            SYSEX_CFW_DIRECT -> processSysEx5E(data, payloadStart = 2, usesGridIndexes = true)
             else -> Log.w(TAG, "Unknown SysEx manufacturer: 0x${manufacturer.toString(16)}")
         }
     }
@@ -392,14 +406,26 @@ class MidiReceiver(
     private fun notesForApolloIndex(index: Int): List<Int> {
         if (index == 0) return allLedNotes()
 
+        // Mystrix row fill (grid rows 0-7 only)
         if (ApolloIndex.isRowFill(index)) {
             val row = ApolloIndex.rowFillRow(index)
             return (0 until NoteMap.GRID_COLS).map { col -> NoteMap.noteForPad(col, row) }
         }
 
+        // Mystrix column fill (grid columns 0-7 only)
         if (ApolloIndex.isColumnFill(index)) {
             val col = ApolloIndex.columnFillColumn(index)
             return (0 until NoteMap.GRID_ROWS).map { row -> NoteMap.noteForPad(col, row) }
+        }
+
+        // CFW row fill (all 10 rows including edge rows 0 and 9)
+        if (ApolloIndex.isCFWRowFill(index)) {
+            return ApolloIndex.cfwRowFillNotes(index)
+        }
+
+        // CFW column fill (all 10 columns including edge columns 0 and 9)
+        if (ApolloIndex.isCFWColumnFill(index)) {
+            return ApolloIndex.cfwColumnFillNotes(index)
         }
 
         return ApolloIndex.toNote(index)?.let { listOf(it) } ?: emptyList()
@@ -530,5 +556,22 @@ class MidiReceiver(
             data[9] == 0x00.toByte() &&
             data[10] == 0x00.toByte() &&
             data[11] == SYSEX_END
+    }
+
+    /**
+     * Detect Novation Launchpad Pro LED clear SysEx.
+     * Format: F0 00 20 29 02 10 0E 00 F7
+     * Sent by Apollo Studio to CFW devices for clearing all LEDs.
+     */
+    private fun isNovationClear(data: ByteArray): Boolean {
+        return data.size == 9 &&
+            data[1] == 0x00.toByte() &&
+            data[2] == 0x20.toByte() &&
+            data[3] == 0x29.toByte() &&
+            data[4] == 0x02.toByte() &&
+            data[5] == 0x10.toByte() &&
+            data[6] == 0x0E.toByte() &&
+            data[7] == 0x00.toByte() &&
+            data[8] == SYSEX_END
     }
 }
