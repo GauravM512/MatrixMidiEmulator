@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MatrixMidiEmulator"
+rootProject.name = "MystrixMidiEmulator"
 include(":app")

@@ -99,6 +99,7 @@ proguard/
 
 # Android Studio
 /*/build/
+/*/release/
 /*/local.properties
 /*/out
 /*/*/build
@@ -126,6 +127,7 @@ gen-external-apklibs
 obj/
 
 # IntelliJ IDEA
+.idea/
 *.iml
 *.iws
 /out/
