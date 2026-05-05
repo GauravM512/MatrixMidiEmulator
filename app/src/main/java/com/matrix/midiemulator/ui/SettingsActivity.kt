@@ -13,13 +13,13 @@ import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.net.toUri
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.matrix.midiemulator.R
 import com.matrix.midiemulator.util.AppPreferences
 import com.matrix.midiemulator.util.PaletteRuntime
-import com.matrix.midiemulator.util.PaletteSlot
 import com.matrix.midiemulator.util.PaletteStore
 import com.matrix.midiemulator.util.SystemUiMode
 import java.io.BufferedReader
@@ -104,7 +104,7 @@ class SettingsActivity : AppCompatActivity() {
         paletteImportSlotSpinner.setSelection(AppPreferences.getPaletteImportSlot(this) - 1)
 
         githubButton.setOnClickListener {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_URL)))
+            startActivity(Intent(Intent.ACTION_VIEW, GITHUB_URL.toUri()))
         }
 
         landscapePadsSwitch.setOnCheckedChangeListener { _, isChecked ->

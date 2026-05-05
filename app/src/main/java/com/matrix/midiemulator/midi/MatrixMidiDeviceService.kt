@@ -51,7 +51,7 @@ class MatrixMidiDeviceService : MidiDeviceService() {
     }
 
     // Keep a single parser instance so SysEx streams can be decoded across packet boundaries.
-    private val ledParser = com.matrix.midiemulator.midi.MidiReceiver(listenerBridge)
+    private val ledParser = MidiReceiver(listenerBridge)
 
     private val inputPortReceiver = object : AndroidMidiReceiver() {
         override fun onSend(msg: ByteArray, offset: Int, count: Int, timestamp: Long) {

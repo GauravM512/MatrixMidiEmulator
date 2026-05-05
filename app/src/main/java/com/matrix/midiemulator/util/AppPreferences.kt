@@ -1,6 +1,7 @@
 package com.matrix.midiemulator.util
 
 import android.content.Context
+import androidx.core.content.edit
 
 object AppPreferences {
     const val LAYOUT_MODE_MYSTRIX = 0
@@ -26,7 +27,7 @@ object AppPreferences {
     }
 
     fun setSelectedPage(context: Context, page: Int) {
-        prefs(context).edit().putInt(KEY_SELECTED_PAGE, page.coerceIn(1, 16)).apply()
+        prefs(context).edit { putInt(KEY_SELECTED_PAGE, page.coerceIn(1, 16)) }
     }
 
     fun getLayoutMode(context: Context): Int {
@@ -36,10 +37,12 @@ object AppPreferences {
     }
 
     fun setLayoutMode(context: Context, mode: Int) {
-        prefs(context).edit().putInt(
-            KEY_LAYOUT_MODE,
-            mode.coerceIn(LAYOUT_MODE_MYSTRIX, LAYOUT_MODE_LAUNCHPAD_X)
-        ).apply()
+        prefs(context).edit {
+            putInt(
+                KEY_LAYOUT_MODE,
+                mode.coerceIn(LAYOUT_MODE_MYSTRIX, LAYOUT_MODE_LAUNCHPAD_X)
+            )
+        }
     }
 
     fun getActivePaletteSlot(context: Context): Int {
@@ -47,7 +50,7 @@ object AppPreferences {
     }
 
     fun setActivePaletteSlot(context: Context, slot: Int) {
-        prefs(context).edit().putInt(KEY_ACTIVE_PALETTE_SLOT, slot.coerceIn(0, 5)).apply()
+        prefs(context).edit { putInt(KEY_ACTIVE_PALETTE_SLOT, slot.coerceIn(0, 5)) }
     }
 
     fun getPaletteImportSlot(context: Context): Int {
@@ -55,7 +58,7 @@ object AppPreferences {
     }
 
     fun setPaletteImportSlot(context: Context, slot: Int) {
-        prefs(context).edit().putInt(KEY_PALETTE_IMPORT_SLOT, slot.coerceIn(1, 4)).apply()
+        prefs(context).edit { putInt(KEY_PALETTE_IMPORT_SLOT, slot.coerceIn(1, 4)) }
     }
 
     fun getLedBrightnessPercent(context: Context): Int {
@@ -63,7 +66,7 @@ object AppPreferences {
     }
 
     fun setLedBrightnessPercent(context: Context, percent: Int) {
-        prefs(context).edit().putInt(KEY_LED_BRIGHTNESS_PERCENT, percent.coerceIn(0, 200)).apply()
+        prefs(context).edit { putInt(KEY_LED_BRIGHTNESS_PERCENT, percent.coerceIn(0, 200)) }
     }
 
     fun isFlickerReductionEnabled(context: Context): Boolean {
@@ -71,7 +74,7 @@ object AppPreferences {
     }
 
     fun setFlickerReductionEnabled(context: Context, enabled: Boolean) {
-        prefs(context).edit().putBoolean(KEY_FLICKER_REDUCTION_ENABLED, enabled).apply()
+        prefs(context).edit { putBoolean(KEY_FLICKER_REDUCTION_ENABLED, enabled) }
     }
 
     fun isLandscapePadsEnabled(context: Context): Boolean {
@@ -79,7 +82,7 @@ object AppPreferences {
     }
 
     fun setLandscapePadsEnabled(context: Context, enabled: Boolean) {
-        prefs(context).edit().putBoolean(KEY_LANDSCAPE_PADS, enabled).apply()
+        prefs(context).edit { putBoolean(KEY_LANDSCAPE_PADS, enabled) }
     }
 
     fun isImmersiveModeEnabled(context: Context): Boolean {
@@ -87,7 +90,7 @@ object AppPreferences {
     }
 
     fun setImmersiveModeEnabled(context: Context, enabled: Boolean) {
-        prefs(context).edit().putBoolean(KEY_IMMERSIVE_MODE, enabled).apply()
+        prefs(context).edit { putBoolean(KEY_IMMERSIVE_MODE, enabled) }
     }
 
     fun isLaunchpadIdentityEnabled(context: Context): Boolean {
@@ -95,7 +98,7 @@ object AppPreferences {
     }
 
     fun setLaunchpadIdentityEnabled(context: Context, enabled: Boolean) {
-        prefs(context).edit().putBoolean(KEY_LAUNCHPAD_CFW_IDENTITY, enabled).apply()
+        prefs(context).edit { putBoolean(KEY_LAUNCHPAD_CFW_IDENTITY, enabled) }
     }
 
     fun isConnectionStatusVisible(context: Context): Boolean {
@@ -103,6 +106,6 @@ object AppPreferences {
     }
 
     fun setConnectionStatusVisible(context: Context, visible: Boolean) {
-        prefs(context).edit().putBoolean(KEY_SHOW_CONNECTION_STATUS, visible).apply()
+        prefs(context).edit { putBoolean(KEY_SHOW_CONNECTION_STATUS, visible) }
     }
 }
