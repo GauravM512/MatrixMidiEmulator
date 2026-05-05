@@ -20,11 +20,7 @@ class UsbMidiBridge(context: Context) {
     }
 
     private val appContext: Context = context.applicationContext
-    private val midiManager: MidiManager? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        appContext.getSystemService(Context.MIDI_SERVICE) as? MidiManager
-    } else {
-        null
-    }
+    private val midiManager: MidiManager? = appContext.getSystemService(Context.MIDI_SERVICE) as? MidiManager
 
     private var currentTxDevice: MidiDevice? = null
     private var currentRxDevice: MidiDevice? = null
@@ -45,9 +41,7 @@ class UsbMidiBridge(context: Context) {
     @Volatile
     private var rxCount = 0L
 
-    fun isSupported(): Boolean {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && midiManager != null
-    }
+    fun isSupported(): Boolean = midiManager != null
 
     @Synchronized
     fun setPacketListener(listener: ((ByteArray, Long) -> Unit)?) {
@@ -466,9 +460,9 @@ class UsbMidiBridge(context: Context) {
 
     private fun listDeviceTargets(): List<DeviceTarget> {
         val out = mutableListOf<DeviceTarget>()
-        val mm = midiManager ?: return out
+        val devices = getMidiDevices()
 
-        for (info in mm.devices) {
+        for (info in devices) {
             if (isSelfServiceDevice(info)) {
                 Log.d(TAG_OUT, "scan skip self service ${describeDevice(info)}")
                 continue
@@ -490,6 +484,16 @@ class UsbMidiBridge(context: Context) {
             }
         }
         return out
+    }
+
+    private fun getMidiDevices(): Collection<MidiDeviceInfo> {
+        val mm = midiManager ?: return emptyList()
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            mm.getDevicesForTransport(MidiManager.TRANSPORT_MIDI_BYTE_STREAM)
+        } else {
+            @Suppress("DEPRECATION")
+            mm.devices.toList()
+        }
     }
 
     private fun isSelfServiceDevice(info: MidiDeviceInfo?): Boolean {
@@ -529,11 +533,9 @@ class UsbMidiBridge(context: Context) {
     }
 
     private fun tryRecoverTxPort() {
-        val mm = midiManager ?: return
         var recoveredPort: MidiInputPort? = null
         var recoveredDevice: MidiDevice? = null
-        @Suppress("DEPRECATION")
-        val infos = mm.devices
+        val infos = getMidiDevices()
 
         var preferred: MidiDeviceInfo? = null
         val rx = currentRxDevice
