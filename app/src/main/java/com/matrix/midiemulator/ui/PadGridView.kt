@@ -2,25 +2,22 @@ package com.matrix.midiemulator.ui
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.RadialGradient
-import android.graphics.RectF
-import android.graphics.Shader
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import com.matrix.midiemulator.ui.layout.LaunchpadPro
+import com.matrix.midiemulator.ui.layout.LaunchpadX
+import com.matrix.midiemulator.ui.layout.MystrixLayout
+import com.matrix.midiemulator.ui.layout.PadLayout
+import com.matrix.midiemulator.ui.layout.PadRenderState
 import com.matrix.midiemulator.util.AppPreferences
 import com.matrix.midiemulator.util.LedPalette
-import com.matrix.midiemulator.util.NoteMap
 import kotlin.math.abs
 import kotlin.math.min
 
 /**
- * Custom view that renders an 8×8 grid of LED pads matching the Matrix/Mystrix layout.
- * Each pad is a rounded rectangle that displays its current LED color and responds
- * to touch events for MIDI note on/off/aftertouch.
+ * Custom view that renders an 8x8 grid of LED pads and dispatches touch events
+ * as MIDI note on/off/aftertouch callbacks.
  */
 class PadGridView @JvmOverloads constructor(
     context: Context,
@@ -28,96 +25,52 @@ class PadGridView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    private enum class EdgeSide {
-        TOP,
-        BOTTOM,
-        LEFT,
-        RIGHT
-    }
-
     private enum class GridLayoutMode {
         MYSTRIX,
         LAUNCHPAD_PRO,
         LAUNCHPAD_X
     }
 
-    companion object {
-        private const val GRID_ROWS = NoteMap.GRID_ROWS
-        private const val GRID_COLS = NoteMap.GRID_COLS
+    private companion object {
         private const val PAD_GAP_DP = 4f
-        private const val PAD_CORNER_RADIUS_DP = 8f
-        private const val PRESSED_PAD_STROKE_DP = 3f
-        private const val EDGE_SEGMENT_COUNT = 32 // 8 segments per side * 4 sides
-
-        private val LAUNCHPAD_PRO_EDGE_HIT_NOTES = intArrayOf(
-            28, 29, 30, 31, 32, 33, 34, 35,
-            100, 101, 102, 103, 104, 105, 106, 107,
-            108, 109, 110, 111, 112, 113, 114, 115,
-            116, 117, 118, 119, 120, 121, 122, 123
-        )
+        private const val EDGE_SEGMENT_COUNT = 32
     }
 
-    /** Current LED colors for each pad (indexed by MIDI note) */
+    private val density = resources.displayMetrics.density
+    private val gap = PAD_GAP_DP * density
+
+    /** Current LED colors for each pad (indexed by MIDI note). */
     private val padColors = IntArray(128) { LedPalette.OFF_COLOR }
 
-    /** Edge backlight colors for the 32 edge segments */
+    /** Edge backlight colors for the 32 edge segments. */
     private val edgeColors = IntArray(EDGE_SEGMENT_COUNT) { LedPalette.OFF_COLOR }
 
-    /** Launchpad top-right corner button (note 27) */
+    /** Launchpad top-right corner button (note 27). */
     @Volatile
     private var cornerTopRightColor = LedPalette.OFF_COLOR
 
-    /** Lock to synchronize color array access between MIDI updates and rendering */
     private val colorLock = Any()
-
-    /** Whether each pad is currently pressed */
     private val padPressed = BooleanArray(128) { false }
-
-    /** Touch pressure for each pad (for aftertouch) */
     private val padPressure = FloatArray(128) { 0f }
-
-    /** Active note bound to each active pointer ID */
     private val activePointerNotes = mutableMapOf<Int, Int>()
-
-    /** Number of active pointers currently pressing each note */
     private val noteTouchCounts = IntArray(128) { 0 }
 
-    private val padRect = RectF()
-    private val edgeButtonRect = RectF()
-    private val cornerArcRect = RectF()
-    private val hsvColor = FloatArray(3)
-    private val centerPadPath = Path()
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val density = resources.displayMetrics.density
+    private val mystrixLayout = MystrixLayout(density, gap)
+    private val launchpadProLayout = LaunchpadPro(density, gap)
+    private val launchpadXLayout = LaunchpadX(density, gap)
 
-    private var cellWidth = 0f
-    private var cellHeight = 0f
-    private val gap = PAD_GAP_DP * density
-    private var gridLeft = 0f
-    private var gridTop = 0f
-    private var edgeButtonRadius = 0f
-    private var launchpadXEdgeSize = 0f
-    private var effectBrightnessScale = 1f
     private var layoutMode = GridLayoutMode.MYSTRIX
-    private var showEdgeLights = true
+    private var activeLayout: PadLayout = mystrixLayout
+    private var effectBrightnessScale = 1f
     private var redrawScheduled = false
 
-    /** Callback for MIDI events */
+    /** Callback for MIDI events. */
     var onPadEventListener: PadEventListener? = null
 
     interface PadEventListener {
         fun onPadPress(note: Int, velocity: Int)
         fun onPadRelease(note: Int)
         fun onPadAftertouch(note: Int, pressure: Int)
-    }
-
-    private fun scheduleRedraw() {
-        if (redrawScheduled) return
-        redrawScheduled = true
-        postOnAnimation {
-            redrawScheduled = false
-            invalidate()
-        }
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -133,586 +86,23 @@ class PadGridView @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        recomputeGridMetrics(w, h)
+        activeLayout.recomputeMetrics(w, h)
     }
-
-    private fun recomputeGridMetrics(w: Int, h: Int) {
-        val size = min(w, h).toFloat()
-        if (layoutMode == GridLayoutMode.MYSTRIX) {
-            gridLeft = 0f
-            gridTop = 0f
-            edgeButtonRadius = 0f
-            launchpadXEdgeSize = 0f
-            cellWidth = (size - gap * (GRID_COLS + 1)) / GRID_COLS
-            cellHeight = (size - gap * (GRID_ROWS + 1)) / GRID_ROWS
-            return
-        }
-
-        if (layoutMode == GridLayoutMode.LAUNCHPAD_X) {
-            edgeButtonRadius = 0f
-            val cell = (size - gap * 10f) / 9f
-            launchpadXEdgeSize = cell
-            gridLeft = 0f
-            gridTop = cell + gap
-            cellWidth = cell
-            cellHeight = cell
-            return
-        }
-
-        val baseCell = (size - gap * (GRID_COLS + 1)) / GRID_COLS
-        val edgeDiameter = baseCell * 0.58f
-        edgeButtonRadius = edgeDiameter / 2f
-        val reserve = edgeDiameter + gap * 1.8f
-        val available = (size - reserve * 2f).coerceAtLeast(gap * (GRID_COLS + 1) + 8f)
-
-        gridLeft = reserve
-        gridTop = reserve
-        cellWidth = (available - gap * (GRID_COLS + 1)) / GRID_COLS
-        cellHeight = (available - gap * (GRID_ROWS + 1)) / GRID_ROWS
-    }
-
-    private fun gridInnerLeft(): Float = gridLeft + gap
-    private fun gridInnerTop(): Float = gridTop + gap
-    private fun gridInnerRight(): Float = gridInnerLeft() + GRID_COLS * cellWidth + (GRID_COLS - 1) * gap
-    private fun gridInnerBottom(): Float = gridInnerTop() + GRID_ROWS * cellHeight + (GRID_ROWS - 1) * gap
-
-    private fun padLeftForCol(col: Int): Float = gridInnerLeft() + col * (cellWidth + gap)
-    private fun padTopForRow(row: Int): Float = gridInnerTop() + (GRID_ROWS - 1 - row) * (cellHeight + gap)
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-
-        // Snapshot color arrays under lock to ensure consistent reads during rendering
-        val padColorSnapshot: IntArray
-        val edgeColorSnapshot: IntArray
-        val cornerSnapshot: Int
-        synchronized(colorLock) {
-            padColorSnapshot = padColors.copyOf()
-            edgeColorSnapshot = edgeColors.copyOf()
-            cornerSnapshot = cornerTopRightColor
-        }
-
-        if (layoutMode == GridLayoutMode.LAUNCHPAD_PRO) {
-            drawLaunchpadSideButtons(canvas, cornerSnapshot, edgeColorSnapshot)
-        } else if (layoutMode == GridLayoutMode.LAUNCHPAD_X) {
-            drawLaunchpadXButtons(canvas, cornerSnapshot, edgeColorSnapshot)
-        } else if (showEdgeLights) {
-            drawEdgeBacklight(canvas, edgeColorSnapshot)
-        }
-
-        for (row in 0 until GRID_ROWS) {
-            for (col in 0 until GRID_COLS) {
-                drawPad(canvas, col, row, padColorSnapshot)
-            }
-        }
-    }
-
-    private fun drawPad(canvas: Canvas, col: Int, row: Int, padColorSnapshot: IntArray) {
-        val note = NoteMap.noteForPad(col, row)
-        setPadRect(col, row)
-
-        val rawPadColor = padColorSnapshot[note]
-        val litPadColor = applyPadBrightness(rawPadColor)
-        val radius = if (layoutMode == GridLayoutMode.LAUNCHPAD_X) 0f else PAD_CORNER_RADIUS_DP * density
-
-        drawPadBloom(canvas, rawPadColor, litPadColor)
-
-        paint.color = litPadColor
-        paint.style = Paint.Style.FILL
-        drawPadShape(canvas, padRect, col, row, radius)
-
-        if (padPressed[note]) {
-            drawPressedPadBorder(canvas, col, row, radius)
-        }
-    }
-
-    private fun setPadRect(col: Int, row: Int) {
-        val left = padLeftForCol(col)
-        val top = padTopForRow(row) // Flip: row 0 = bottom
-        padRect.set(left, top, left + cellWidth, top + cellHeight)
-    }
-
-    private fun drawPadBloom(canvas: Canvas, rawPadColor: Int, litPadColor: Int) {
-        val padScale = currentPadBrightnessScale()
-        if (padScale <= 1f || rawPadColor == LedPalette.OFF_COLOR) return
-
-        val boost = (padScale - 1f).coerceIn(0f, 1f)
-        val bloomRadius = (maxOf(cellWidth, cellHeight) * (0.62f + boost * 0.75f)).coerceAtLeast(1f)
-        val bloomAlpha = (34 + boost * 104f).toInt().coerceIn(0, 255)
-        paint.shader = RadialGradient(
-            padRect.centerX(),
-            padRect.centerY(),
-            bloomRadius,
-            withAlpha(litPadColor, bloomAlpha),
-            withAlpha(litPadColor, 0),
-            Shader.TileMode.CLAMP
-        )
-        paint.style = Paint.Style.FILL
-        canvas.drawCircle(padRect.centerX(), padRect.centerY(), bloomRadius, paint)
-        paint.shader = null
-    }
-
-    private fun drawPressedPadBorder(canvas: Canvas, col: Int, row: Int, radius: Float) {
-        paint.color = 0x80FFFFFF.toInt()
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = PRESSED_PAD_STROKE_DP * density
-        drawPadShape(canvas, padRect, col, row, radius)
-        paint.style = Paint.Style.FILL
-    }
-
-    private fun drawPadShape(canvas: Canvas, rect: RectF, col: Int, row: Int, radius: Float) {
-        val cutCorner = centerCutCorner(col, row)
-        if (cutCorner == null) {
-            if (radius > 0f) {
-                canvas.drawRoundRect(rect, radius, radius, paint)
-            } else {
-                canvas.drawRect(rect, paint)
-            }
-            return
-        }
-
-        val baseCut = min(rect.width(), rect.height()) * 0.28f
-        // In rounded layouts, ensure the diagonal cut fully clears the rounded corner arc.
-        val cut = if (radius > 0f) maxOf(baseCut, radius + density) else baseCut
-        centerPadPath.reset()
-        centerPadPath.fillType = Path.FillType.EVEN_ODD
-        if (radius > 0f) {
-            centerPadPath.addRoundRect(rect, radius, radius, Path.Direction.CW)
-        } else {
-            centerPadPath.addRect(rect, Path.Direction.CW)
-        }
-
-        appendCornerCutout(centerPadPath, rect, cutCorner, cut, radius)
-        canvas.drawPath(centerPadPath, paint)
-    }
-
-    private fun appendCornerCutout(path: Path, rect: RectF, cutCorner: CenterCutCorner, cut: Float, radius: Float) {
-        when (cutCorner) {
-            CenterCutCorner.TOP_LEFT -> {
-                path.moveTo(rect.left + cut, rect.top)
-                if (radius > 0f) {
-                    path.lineTo(rect.left + radius, rect.top)
-                    cornerArcRect.set(rect.left, rect.top, rect.left + 2 * radius, rect.top + 2 * radius)
-                    path.arcTo(
-                        cornerArcRect,
-                        270f, -90f, false
-                    )
-                } else {
-                    path.lineTo(rect.left, rect.top)
-                }
-                path.lineTo(rect.left, rect.top + cut)
-            }
-            CenterCutCorner.TOP_RIGHT -> {
-                path.moveTo(rect.right - cut, rect.top)
-                if (radius > 0f) {
-                    path.lineTo(rect.right - radius, rect.top)
-                    cornerArcRect.set(rect.right - 2 * radius, rect.top, rect.right, rect.top + 2 * radius)
-                    path.arcTo(
-                        cornerArcRect,
-                        270f, 90f, false
-                    )
-                } else {
-                    path.lineTo(rect.right, rect.top)
-                }
-                path.lineTo(rect.right, rect.top + cut)
-            }
-            CenterCutCorner.BOTTOM_RIGHT -> {
-                path.moveTo(rect.right - cut, rect.bottom)
-                if (radius > 0f) {
-                    path.lineTo(rect.right - radius, rect.bottom)
-                    cornerArcRect.set(rect.right - 2 * radius, rect.bottom - 2 * radius, rect.right, rect.bottom)
-                    path.arcTo(
-                        cornerArcRect,
-                        90f, -90f, false
-                    )
-                } else {
-                    path.lineTo(rect.right, rect.bottom)
-                }
-                path.lineTo(rect.right, rect.bottom - cut)
-            }
-            CenterCutCorner.BOTTOM_LEFT -> {
-                path.moveTo(rect.left + cut, rect.bottom)
-                if (radius > 0f) {
-                    path.lineTo(rect.left + radius, rect.bottom)
-                    cornerArcRect.set(rect.left, rect.bottom - 2 * radius, rect.left + 2 * radius, rect.bottom)
-                    path.arcTo(
-                        cornerArcRect,
-                        90f, 90f, false
-                    )
-                } else {
-                    path.lineTo(rect.left, rect.bottom)
-                }
-                path.lineTo(rect.left, rect.bottom - cut)
-            }
-        }
-        path.close()
-    }
-
-    private enum class CenterCutCorner {
-        TOP_LEFT,
-        TOP_RIGHT,
-        BOTTOM_RIGHT,
-        BOTTOM_LEFT
-    }
-
-    private fun centerCutCorner(col: Int, row: Int): CenterCutCorner? {
-        return when {
-            col == 3 && row == 4 -> CenterCutCorner.BOTTOM_RIGHT
-            col == 4 && row == 4 -> CenterCutCorner.BOTTOM_LEFT
-            col == 3 && row == 3 -> CenterCutCorner.TOP_RIGHT
-            col == 4 && row == 3 -> CenterCutCorner.TOP_LEFT
-            else -> null
-        }
-    }
-
-    private fun drawLaunchpadSideButtons(canvas: Canvas, cornerColor: Int, edgeColors: IntArray) {
-        val topY = gridInnerTop() - edgeButtonRadius - gap * 0.8f
-        val bottomY = gridInnerBottom() + edgeButtonRadius + gap * 0.8f
-        val leftX = gridInnerLeft() - edgeButtonRadius - gap * 0.8f
-        val rightX = gridInnerRight() + edgeButtonRadius + gap * 0.8f
-
-        // Top: notes 28..35, left -> right
-        for (i in 0 until GRID_COLS) {
-            val cx = padLeftForCol(i) + cellWidth / 2f
-            drawLaunchpadSideButton(canvas, 28 + i, cx, topY, cornerColor, edgeColors)
-        }
-
-        // Bottom: notes 116..123, left -> right
-        for (i in 0 until GRID_COLS) {
-            val cx = padLeftForCol(i) + cellWidth / 2f
-            drawLaunchpadSideButton(canvas, 116 + i, cx, bottomY, cornerColor, edgeColors)
-        }
-
-        // Left: notes 108..115, top -> bottom
-        for (i in 0 until GRID_ROWS) {
-            val cy = gridInnerTop() + i * (cellHeight + gap) + cellHeight / 2f
-            drawLaunchpadSideButton(canvas, 108 + i, leftX, cy, cornerColor, edgeColors)
-        }
-
-        // Right: notes 100..107, top -> bottom
-        for (i in 0 until GRID_ROWS) {
-            val cy = gridInnerTop() + i * (cellHeight + gap) + cellHeight / 2f
-            drawLaunchpadSideButton(canvas, 100 + i, rightX, cy, cornerColor, edgeColors)
-        }
-
-        // Top-right corner: note 27
-        drawLaunchpadSideButton(canvas, 27, rightX, topY, cornerColor, edgeColors)
-    }
-
-    private fun drawLaunchpadXButtons(canvas: Canvas, cornerColor: Int, edgeColors: IntArray) {
-        val top = gap
-        val right = gridInnerRight() + gap
-
-        for (i in 0 until GRID_COLS) {
-            val left = padLeftForCol(i)
-            drawLaunchpadXButton(canvas, 28 + i, left, top, cornerColor, edgeColors)
-        }
-
-        for (i in 0 until GRID_ROWS) {
-            val topForButton = gridInnerTop() + i * (cellHeight + gap)
-            drawLaunchpadXButton(canvas, 100 + i, right, topForButton, cornerColor, edgeColors)
-        }
-
-        drawLaunchpadXButton(canvas, 27, right, top, cornerColor, edgeColors)
-    }
-
-    private fun drawLaunchpadXButton(canvas: Canvas, note: Int, left: Float, top: Float, cornerColor: Int, edgeColors: IntArray) {
-        val index = mapNoteToEdgeSegmentIndex(note)
-        val edgeColor = when {
-            note == 27 -> cornerColor
-            index != -1 -> edgeColors[index]
-            else -> LedPalette.OFF_COLOR
-        }
-        val litColor = if (edgeColor == LedPalette.OFF_COLOR) edgeColor else applyEffectBrightness(edgeColor)
-        edgeButtonRect.set(left, top, left + launchpadXEdgeSize, top + launchpadXEdgeSize)
-
-        if (edgeColor != LedPalette.OFF_COLOR) {
-            val glowRadius = launchpadXEdgeSize * 0.88f
-            paint.shader = RadialGradient(
-                edgeButtonRect.centerX(),
-                edgeButtonRect.centerY(),
-                glowRadius,
-                withAlpha(litColor, scaledAlpha(72)),
-                withAlpha(litColor, 0),
-                Shader.TileMode.CLAMP
-            )
-            paint.style = Paint.Style.FILL
-            canvas.drawCircle(edgeButtonRect.centerX(), edgeButtonRect.centerY(), glowRadius, paint)
-            paint.shader = null
-        }
-
-        paint.style = Paint.Style.FILL
-        paint.color = 0xFF111111.toInt()
-        canvas.drawRect(edgeButtonRect, paint)
-
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 1.2f * density
-        paint.color = if (edgeColor == LedPalette.OFF_COLOR) 0xFF777777.toInt() else withAlpha(litColor, 245)
-        canvas.drawRect(edgeButtonRect, paint)
-
-        if (note == 27) {
-            val innerRadius = launchpadXEdgeSize * 0.28f
-            paint.style = if (edgeColor == LedPalette.OFF_COLOR) Paint.Style.STROKE else Paint.Style.FILL
-            paint.strokeWidth = 1.5f * density
-            paint.color = if (edgeColor == LedPalette.OFF_COLOR) 0xFF5F6771.toInt() else withAlpha(litColor, 245)
-            canvas.drawCircle(edgeButtonRect.centerX(), edgeButtonRect.centerY(), innerRadius, paint)
-
-            if (edgeColor == LedPalette.OFF_COLOR) {
-                paint.style = Paint.Style.FILL
-                paint.color = 0xFF5F6771.toInt()
-                canvas.drawCircle(edgeButtonRect.centerX(), edgeButtonRect.centerY(), innerRadius * 0.72f, paint)
-            }
-        }
-
-        if (padPressed[note]) {
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 2f * density
-            paint.color = 0xAAFFFFFF.toInt()
-            canvas.drawRect(edgeButtonRect, paint)
-        }
-    }
-
-    private fun drawLaunchpadSideButton(canvas: Canvas, note: Int, cx: Float, cy: Float, cornerColor: Int, edgeColors: IntArray) {
-        val index = mapNoteToEdgeSegmentIndex(note)
-        val edgeColor = when {
-            note == 27 -> cornerColor
-            index != -1 -> edgeColors[index]
-            else -> LedPalette.OFF_COLOR
-        }
-
-        if (note == 27) {
-            // Corner note 27 is intentionally a plain circle (no ring) to differentiate it.
-            if (edgeColor == LedPalette.OFF_COLOR) {
-                paint.shader = null
-                paint.style = Paint.Style.FILL
-                paint.color = 0xFF5F6771.toInt()
-                canvas.drawCircle(cx, cy, edgeButtonRadius * 0.80f, paint)
-            } else {
-                val litColor = applyEffectBrightness(edgeColor)
-                val glowRadius = edgeButtonRadius * 1.65f
-                paint.shader = RadialGradient(
-                    cx,
-                    cy,
-                    glowRadius,
-                    withAlpha(litColor, scaledAlpha(80)),
-                    withAlpha(litColor, 0),
-                    Shader.TileMode.CLAMP
-                )
-                paint.style = Paint.Style.FILL
-                canvas.drawCircle(cx, cy, glowRadius, paint)
-                paint.shader = null
-
-                paint.style = Paint.Style.FILL
-                paint.color = withAlpha(litColor, 245)
-                canvas.drawCircle(cx, cy, edgeButtonRadius * 0.80f, paint)
-            }
-
-            if (padPressed[note]) {
-                paint.style = Paint.Style.STROKE
-                paint.strokeWidth = 2f * density
-                paint.color = 0xAAFFFFFF.toInt()
-                canvas.drawCircle(cx, cy, edgeButtonRadius * 0.58f, paint)
-            }
-            return
-        }
-
-        // Dark center disk (consistent for OFF and ON states)
-        paint.shader = null
-        paint.style = Paint.Style.FILL
-        paint.color = 0xFF0B111D.toInt()
-        canvas.drawCircle(cx, cy, edgeButtonRadius * 0.95f, paint)
-
-        if (edgeColor == LedPalette.OFF_COLOR) {
-            // OFF: simple neutral ring like c.png
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 2f * density
-            paint.color = 0xFF7A8088.toInt()
-            canvas.drawCircle(cx, cy, edgeButtonRadius * 0.88f, paint)
-        } else {
-            val litColor = applyEffectBrightness(edgeColor)
-
-            // ON: soft colored halo + colored ring like c2.png
-            val glowRadius = edgeButtonRadius * 1.75f
-            paint.shader = RadialGradient(
-                cx,
-                cy,
-                glowRadius,
-                withAlpha(litColor, scaledAlpha(86)),
-                withAlpha(litColor, 0),
-                Shader.TileMode.CLAMP
-            )
-            paint.style = Paint.Style.FILL
-            canvas.drawCircle(cx, cy, glowRadius, paint)
-            paint.shader = null
-
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 2.4f * density
-            paint.color = withAlpha(litColor, 230)
-            canvas.drawCircle(cx, cy, edgeButtonRadius * 0.88f, paint)
-        }
-
-        if (padPressed[note]) {
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 2f * density
-            paint.color = 0xAAFFFFFF.toInt()
-            canvas.drawCircle(cx, cy, edgeButtonRadius * 0.70f, paint)
-        }
-    }
-
-    private fun drawEdgeBacklight(canvas: Canvas, edgeColors: IntArray) {
-        val edgeBand = gap
-        val leftMost = gap
-        val rightMost = leftMost + GRID_COLS * cellWidth + (GRID_COLS - 1) * gap
-
-        // Top: notes 28-35, left -> right (indices 0-7 in edgeColors)
-        for (i in 0 until GRID_COLS) {
-            val cellLeft = gap + i * (cellWidth + gap)
-            val cellRight = cellLeft + cellWidth
-
-            val topRect = RectF(cellLeft, 0f, cellRight, edgeBand)
-            drawGlowRect(canvas, topRect, edgeColors[i], EdgeSide.TOP) // edgeColors[0] to edgeColors[7]
-        }
-
-        // Bottom: notes 116-123, right -> left (indices 16-23 in edgeColors)
-        for (i in 0 until GRID_COLS) {
-            val cellLeft = gap + i * (cellWidth + gap)
-            val cellRight = cellLeft + cellWidth
-            val bottomRect = RectF(cellLeft, height - edgeBand, cellRight, height.toFloat())
-            // Visual segment i (0=left, 7=right) corresponds to edgeColors[23 - i]
-            drawGlowRect(canvas, bottomRect, edgeColors[23 - i], EdgeSide.BOTTOM) // edgeColors[23] to edgeColors[16]
-        }
-
-        // Right: notes 100-107, top -> bottom (indices 8-15 in edgeColors)
-        for (visualRow in 0 until GRID_ROWS) {
-            val cellTop = gap + visualRow * (cellHeight + gap)
-            val cellBottom = cellTop + cellHeight
-
-            val rightRect = RectF(rightMost, cellTop, width.toFloat(), cellBottom)
-            // Visual segment visualRow (0=top, 7=bottom) corresponds to edgeColors[visualRow + 8]
-            drawGlowRect(canvas, rightRect, edgeColors[visualRow + 8], EdgeSide.RIGHT) // edgeColors[8] to edgeColors[15]
-        }
-
-        // Left: notes 108-115, bottom -> top (indices 24-31 in edgeColors)
-        for (visualRow in 0 until GRID_ROWS) {
-            val cellTop = gap + visualRow * (cellHeight + gap)
-            val cellBottom = cellTop + cellHeight
-            val leftRect = RectF(0f, cellTop, leftMost, cellBottom)
-            // Visual segment visualRow (0=top, 7=bottom) corresponds to edgeColors[31 - visualRow]
-            drawGlowRect(canvas, leftRect, edgeColors[31 - visualRow], EdgeSide.LEFT) // edgeColors[31] to edgeColors[24]
-        }
-    }
-
-    private fun drawGlowRect(canvas: Canvas, rect: RectF, color: Int, side: EdgeSide) {
-        if (color == LedPalette.OFF_COLOR) return
-
-        val r = 10f * density
-        val litColor = applyEffectBrightness(color)
-
-        // Outside glow only: all layers expand away from the grid.
-        fun outwardRect(rect: RectF, along: Float, across: Float): RectF {
-            return when (side) {
-                EdgeSide.TOP -> RectF(rect.left - across, rect.top - along, rect.right + across, rect.bottom)
-                EdgeSide.BOTTOM -> RectF(rect.left - across, rect.top, rect.right + across, rect.bottom + along)
-                EdgeSide.LEFT -> RectF(rect.left - along, rect.top - across, rect.right, rect.bottom + across)
-                EdgeSide.RIGHT -> RectF(rect.left, rect.top - across, rect.right + along, rect.bottom + across)
-            }
-        }
-
-        // Draw source strip first, then outward glow layers.
-        paint.style = Paint.Style.FILL
-        paint.color = withAlpha(litColor, scaledAlpha(255))
-        canvas.drawRoundRect(rect, r, r, paint)
-
-        val spreadOuterMost = 40f * density
-        val outerMostRect = outwardRect(rect, spreadOuterMost, 12f * density)
-        paint.color = withAlpha(litColor, scaledAlpha(10))
-        canvas.drawRoundRect(outerMostRect, r + 20f * density, r + 20f * density, paint)
-
-        val spreadOuter = 25f * density
-        val outerRect = outwardRect(rect, spreadOuter, 8f * density)
-        paint.color = withAlpha(litColor, scaledAlpha(25))
-        canvas.drawRoundRect(outerRect, r + 15f * density, r + 15f * density, paint)
-
-        val spreadMid = 15f * density
-        val midRect = outwardRect(rect, spreadMid, 5f * density)
-        paint.color = withAlpha(litColor, scaledAlpha(50))
-        canvas.drawRoundRect(midRect, r + 9f * density, r + 9f * density, paint)
-
-        val spreadInner = 8f * density
-        val innerRect = outwardRect(rect, spreadInner, 2f * density)
-        paint.color = withAlpha(litColor, scaledAlpha(90))
-        canvas.drawRoundRect(innerRect, r + 4f * density, r + 4f * density, paint)
-    }
-
-    private fun withAlpha(color: Int, alpha: Int): Int {
-        return Color.argb(
-            alpha.coerceIn(0, 255),
-            Color.red(color),
-            Color.green(color),
-            Color.blue(color)
-        )
-    }
-
-    private fun applyEffectBrightness(color: Int): Int {
-        if (effectBrightnessScale >= 0.999f && effectBrightnessScale <= 1.001f) return color
-
-        val factor = if (effectBrightnessScale <= 1f) {
-            0.18f + (effectBrightnessScale * 0.82f)
-        } else {
-            1f + ((effectBrightnessScale - 1f) * 0.20f).coerceAtMost(0.25f)
-        }
-
-        return Color.argb(
-            Color.alpha(color),
-            (Color.red(color) * factor).toInt().coerceIn(0, 255),
-            (Color.green(color) * factor).toInt().coerceIn(0, 255),
-            (Color.blue(color) * factor).toInt().coerceIn(0, 255)
-        )
-    }
-
-    private fun scaledAlpha(baseAlpha: Int): Int {
-        val factor = if (effectBrightnessScale <= 1f) {
-            0.20f + (effectBrightnessScale * 0.80f)
-        } else {
-            1f + ((effectBrightnessScale - 1f) * 0.15f).coerceAtMost(0.20f)
-        }
-        return (baseAlpha * factor).toInt().coerceIn(0, 255)
-    }
-
-    private fun applyPadBrightness(color: Int): Int {
-        val scale = currentPadBrightnessScale()
-        if (scale >= 0.999f && scale <= 1.001f) return color
-
-        if (scale <= 1f) {
-            val factor = 0.22f + (scale * 0.78f)
-            return Color.argb(
-                Color.alpha(color),
-                (Color.red(color) * factor).toInt().coerceIn(0, 255),
-                (Color.green(color) * factor).toInt().coerceIn(0, 255),
-                (Color.blue(color) * factor).toInt().coerceIn(0, 255)
-            )
-        }
-
-        val boost = (scale - 1f).coerceIn(0f, 1f)
-        Color.colorToHSV(color, hsvColor)
-        hsvColor[2] = (hsvColor[2] + (1f - hsvColor[2]) * (boost * 0.95f)).coerceIn(0f, 1f)
-        hsvColor[1] = (hsvColor[1] * (1f - boost * 0.10f)).coerceIn(0f, 1f)
-        return Color.HSVToColor(Color.alpha(color), hsvColor)
-    }
-
-    private fun currentPadBrightnessScale(): Float {
-        return effectBrightnessScale
+        activeLayout.draw(canvas, renderStateSnapshot())
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                val idx = event.actionIndex
+                val index = event.actionIndex
                 handleTouchDown(
-                    event.getPointerId(idx),
-                    event.getX(idx),
-                    event.getY(idx),
-                    event.getPressure(idx)
+                    event.getPointerId(index),
+                    event.getX(index),
+                    event.getY(index),
+                    event.getPressure(index)
                 )
                 return true
             }
@@ -728,8 +118,7 @@ class PadGridView @JvmOverloads constructor(
                 return true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
-                val idx = event.actionIndex
-                handleTouchUp(event.getPointerId(idx))
+                handleTouchUp(event.getPointerId(event.actionIndex))
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
@@ -740,98 +129,112 @@ class PadGridView @JvmOverloads constructor(
         return super.onTouchEvent(event)
     }
 
+    /**
+     * Set the LED color for an 8x8 grid pad.
+     */
+    fun setPadColor(note: Int, color: Int) {
+        if (note in 36..99) {
+            synchronized(colorLock) {
+                padColors[note] = color
+            }
+            scheduleRedraw()
+        }
+    }
+
+    /**
+     * Set edge backlight color for a given MIDI note.
+     */
+    fun setEdgeSegmentColor(note: Int, color: Int) {
+        if (note == 27) {
+            cornerTopRightColor = color
+            scheduleRedraw()
+            return
+        }
+
+        val index = mapNoteToEdgeSegmentIndex(note)
+        if (index != -1) {
+            synchronized(colorLock) {
+                edgeColors[index] = color
+            }
+            scheduleRedraw()
+        }
+    }
+
+    fun setLedBrightnessPercent(percent: Int) {
+        effectBrightnessScale = percent.coerceIn(0, 200) / 100f
+        scheduleRedraw()
+    }
+
+    fun setEffectBrightnessPercent(percent: Int) {
+        setLedBrightnessPercent(percent)
+    }
+
+    fun setCircularPadMode(enabled: Boolean) {
+        layoutMode = if (enabled) GridLayoutMode.LAUNCHPAD_PRO else GridLayoutMode.MYSTRIX
+        applyActiveLayout()
+    }
+
+    fun setShowEdgeLights(enabled: Boolean) {
+        mystrixLayout.showEdgeLights = enabled
+        scheduleRedraw()
+    }
+
+    fun setLayoutMode(mode: Int) {
+        layoutMode = when (mode) {
+            AppPreferences.LAYOUT_MODE_LAUNCHPAD_PRO_MK2 -> GridLayoutMode.LAUNCHPAD_PRO
+            AppPreferences.LAYOUT_MODE_LAUNCHPAD_X -> GridLayoutMode.LAUNCHPAD_X
+            else -> GridLayoutMode.MYSTRIX
+        }
+        mystrixLayout.showEdgeLights = layoutMode == GridLayoutMode.MYSTRIX
+        applyActiveLayout()
+    }
+
+    /**
+     * Clear all pad colors.
+     */
+    fun clearAll() {
+        synchronized(colorLock) {
+            padColors.fill(LedPalette.OFF_COLOR)
+            edgeColors.fill(LedPalette.OFF_COLOR)
+        }
+        cornerTopRightColor = LedPalette.OFF_COLOR
+        scheduleRedraw()
+    }
+
+    private fun renderStateSnapshot(): PadRenderState {
+        synchronized(colorLock) {
+            return PadRenderState(
+                padColors = padColors.copyOf(),
+                edgeColors = edgeColors.copyOf(),
+                cornerTopRightColor = cornerTopRightColor,
+                padPressed = padPressed,
+                brightnessScale = effectBrightnessScale
+            )
+        }
+    }
+
+    private fun applyActiveLayout() {
+        activeLayout = when (layoutMode) {
+            GridLayoutMode.MYSTRIX -> mystrixLayout
+            GridLayoutMode.LAUNCHPAD_PRO -> launchpadProLayout
+            GridLayoutMode.LAUNCHPAD_X -> launchpadXLayout
+        }
+        activeLayout.recomputeMetrics(width, height)
+        requestLayout()
+        scheduleRedraw()
+    }
+
+    private fun scheduleRedraw() {
+        if (redrawScheduled) return
+        redrawScheduled = true
+        postOnAnimation {
+            redrawScheduled = false
+            invalidate()
+        }
+    }
+
     private fun getPadForPosition(x: Float, y: Float): Int? {
-        if (layoutMode == GridLayoutMode.LAUNCHPAD_PRO || layoutMode == GridLayoutMode.LAUNCHPAD_X) {
-            val edge = getEdgeNoteForPosition(x, y)
-            if (edge != null) return edge
-        }
-
-        for (row in 0 until GRID_ROWS) {
-            for (col in 0 until GRID_COLS) {
-                val left = padLeftForCol(col)
-                val top = padTopForRow(row)
-                val right = left + cellWidth
-                val bottom = top + cellHeight
-
-                if (x in left..right && y in top..bottom) {
-                    return NoteMap.noteForPad(col, row)
-                }
-            }
-        }
-        return null
-    }
-
-    private fun getEdgeNoteForPosition(x: Float, y: Float): Int? {
-        if (layoutMode == GridLayoutMode.LAUNCHPAD_X) {
-            return getLaunchpadXEdgeNoteForPosition(x, y)
-        }
-
-        val hitRadius = edgeButtonRadius * 1.1f
-        val hitRadiusSq = hitRadius * hitRadius
-
-        for (note in LAUNCHPAD_PRO_EDGE_HIT_NOTES) {
-            val center = edgeButtonCenterForNote(note) ?: continue
-            val dx = x - center.first
-            val dy = y - center.second
-            if (dx * dx + dy * dy <= hitRadiusSq) {
-                return note
-            }
-        }
-        return null
-    }
-
-    private fun getLaunchpadXEdgeNoteForPosition(x: Float, y: Float): Int? {
-        val top = gap
-        val right = gridInnerRight() + gap
-
-        fun hitsSquare(left: Float, top: Float): Boolean {
-            return x in left..(left + launchpadXEdgeSize) &&
-                y in top..(top + launchpadXEdgeSize)
-        }
-
-        for (i in 0 until GRID_COLS) {
-            val left = padLeftForCol(i)
-            if (hitsSquare(left, top)) {
-                return 28 + i
-            }
-        }
-
-        for (i in 0 until GRID_ROWS) {
-            val topForButton = gridInnerTop() + i * (cellHeight + gap)
-            if (hitsSquare(right, topForButton)) {
-                return 100 + i
-            }
-        }
-
-        return null
-    }
-
-    private fun edgeButtonCenterForNote(note: Int): Pair<Float, Float>? {
-        val topY = gridInnerTop() - edgeButtonRadius - gap * 0.8f
-        val bottomY = gridInnerBottom() + edgeButtonRadius + gap * 0.8f
-        val leftX = gridInnerLeft() - edgeButtonRadius - gap * 0.8f
-        val rightX = gridInnerRight() + edgeButtonRadius + gap * 0.8f
-
-        return when (note) {
-            27 -> Pair(rightX, topY)
-            in 28..35 -> {
-                val i = note - 28
-                Pair(padLeftForCol(i) + cellWidth / 2f, topY)
-            }
-            in 116..123 -> {
-                val i = note - 116
-                Pair(padLeftForCol(i) + cellWidth / 2f, bottomY)
-            }
-            in 108..115 -> {
-                val i = note - 108
-                Pair(leftX, gridInnerTop() + i * (cellHeight + gap) + cellHeight / 2f)
-            }
-            in 100..107 -> {
-                val i = note - 100
-                Pair(rightX, gridInnerTop() + i * (cellHeight + gap) + cellHeight / 2f)
-            }
-            else -> null
-        }
+        return activeLayout.noteAt(x, y)
     }
 
     private fun handleTouchDown(pointerId: Int, x: Float, y: Float, pressure: Float) {
@@ -897,8 +300,7 @@ class PadGridView @JvmOverloads constructor(
         padPressure[note] = pressure
         if (!padPressed[note]) {
             padPressed[note] = true
-            val velocity = pressureToVelocity(pressure)
-            onPadEventListener?.onPadPress(note, velocity)
+            onPadEventListener?.onPadPress(note, pressureToVelocity(pressure))
         }
     }
 
@@ -912,94 +314,16 @@ class PadGridView @JvmOverloads constructor(
     }
 
     private fun pressureToVelocity(pressure: Float): Int {
-        // Touch pressure typically ranges 0.0-1.0, map to MIDI 1-127
         return (pressure.coerceIn(0f, 1f) * 126 + 1).toInt().coerceIn(1, 127)
     }
 
-    /**
-     * Set the LED color for an edge segment by MIDI note number.
-     */
-    fun setPadColor(note: Int, color: Int) { // This is for the 8x8 grid pads
-        if (note in 36..99) {
-            synchronized(colorLock) {
-                padColors[note] = color
-            }
-            scheduleRedraw()
-        }
-    }
-
-    /**
-     * Set edge backlight color for a given MIDI note.
-     */
-    fun setEdgeSegmentColor(note: Int, color: Int) {
-        if (note == 27) {
-            cornerTopRightColor = color
-            scheduleRedraw()
-            return
-        }
-
-        val index = mapNoteToEdgeSegmentIndex(note)
-        if (index != -1) {
-            synchronized(colorLock) {
-                edgeColors[index] = color
-            }
-            scheduleRedraw()
-        }
-    }
-
-    fun setLedBrightnessPercent(percent: Int) {
-        effectBrightnessScale = percent.coerceIn(0, 200) / 100f
-        scheduleRedraw()
-    }
-
-    fun setEffectBrightnessPercent(percent: Int) {
-        setLedBrightnessPercent(percent)
-    }
-
-    fun setCircularPadMode(enabled: Boolean) {
-        layoutMode = if (enabled) GridLayoutMode.LAUNCHPAD_PRO else GridLayoutMode.MYSTRIX
-        recomputeGridMetrics(width, height)
-        requestLayout()
-        scheduleRedraw()
-    }
-
-    fun setShowEdgeLights(enabled: Boolean) {
-        showEdgeLights = enabled
-        scheduleRedraw()
-    }
-
-    fun setLayoutMode(mode: Int) {
-        layoutMode = when (mode) {
-            AppPreferences.LAYOUT_MODE_LAUNCHPAD_PRO_MK2 -> GridLayoutMode.LAUNCHPAD_PRO
-            AppPreferences.LAYOUT_MODE_LAUNCHPAD_X -> GridLayoutMode.LAUNCHPAD_X
-            else -> GridLayoutMode.MYSTRIX
-        }
-        showEdgeLights = layoutMode == GridLayoutMode.MYSTRIX
-        recomputeGridMetrics(width, height)
-        requestLayout()
-        scheduleRedraw()
-    }
-
-
     private fun mapNoteToEdgeSegmentIndex(note: Int): Int {
         return when (note) {
-            in 28..35 -> note - 28 // Top edge, 0-7
-            in 100..107 -> note - 100 + 8 // Right edge, 8-15
-            in 116..123 -> 123 - note + 16 // Bottom edge (reversed), 16-23
-            in 108..115 -> 115 - note + 24 // Left edge (reversed), 24-31
-            else -> -1 // Not an edge note
+            in 28..35 -> note - 28
+            in 100..107 -> note - 100 + 8
+            in 116..123 -> 123 - note + 16
+            in 108..115 -> 115 - note + 24
+            else -> -1
         }
-    }
-
-    /**
-     * Clear all pad colors.
-     */
-    fun clearAll() {
-        synchronized(colorLock) {
-            padColors.fill(LedPalette.OFF_COLOR)
-            edgeColors.fill(LedPalette.OFF_COLOR)
-        }
-        cornerTopRightColor = LedPalette.OFF_COLOR
-        scheduleRedraw()
     }
 }
