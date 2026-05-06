@@ -48,17 +48,6 @@
             android:textColor="#888888"
             android:textSize="14sp"/>
 
-        <TextView
-            android:id="@+id/deviceNameText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="MYSTRIX"
-            android:textColor="#6C63FF"
-            android:textSize="14sp"
-            android:fontFamily="monospace"
-            android:textStyle="bold"
-            android:visibility="gone"/>
-
     </LinearLayout>
 
     <!-- 8x8 Pad Grid -->

@@ -7,7 +7,6 @@ import com.matrix.midiemulator.util.ApolloIndex
 import com.matrix.midiemulator.util.FlickerReduction
 import com.matrix.midiemulator.util.LedPalette
 import com.matrix.midiemulator.util.NoteMap
-import com.matrix.midiemulator.util.PaletteRuntime
 
 /**
  * Parses incoming MIDI messages from the host (PC) and dispatches LED color updates.
@@ -60,8 +59,6 @@ class MidiReceiver(
                 IDENTITY_REPLY.copyOf()
             }
         }
-
-        fun identityReplyBytes(): ByteArray = IDENTITY_REPLY.copyOf()
 
         // SysEx manufacturer ID for Apollo/Matrix
         private const val SYSEX_MANUFACTURER = 0x5E

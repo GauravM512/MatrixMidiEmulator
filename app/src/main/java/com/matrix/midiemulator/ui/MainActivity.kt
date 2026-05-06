@@ -38,7 +38,6 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
     private lateinit var touchbar: TouchbarView
     private lateinit var statusText: TextView
     private lateinit var statusIndicator: View
-    private lateinit var deviceNameText: TextView
     private lateinit var settingsButton: View
 
     private var isConnected = false
@@ -148,7 +147,6 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
         touchbarContainer = findViewById(R.id.touchbarContainer)
         statusText = findViewById(R.id.statusText)
         statusIndicator = findViewById(R.id.statusIndicator)
-        deviceNameText = findViewById(R.id.deviceNameText)
         settingsButton = findViewById(R.id.settingsButton)
     }
 
@@ -178,7 +176,6 @@ class MainActivity : AppCompatActivity(), MidiReceiver.MidiLedListener {
         val isLaunchpadLayout = layoutMode == AppPreferences.LAYOUT_MODE_LAUNCHPAD_PRO_MK2
         val isLaunchpadXLayout = layoutMode == AppPreferences.LAYOUT_MODE_LAUNCHPAD_X
 
-        deviceNameText.visibility = View.GONE
         padGrid.setLayoutMode(layoutMode)
         bridgeParser?.flickerReduction?.enabled = AppPreferences.isFlickerReductionEnabled(this)
 
