@@ -61,7 +61,7 @@ class PadGridView @JvmOverloads constructor(
 
     private var layoutMode = GridLayoutMode.MYSTRIX
     private var activeLayout: PadLayout = mystrixLayout
-    private var effectBrightnessScale = 1f
+    private var brightnessScale = 1f
     private var redrawScheduled = false
 
     /** Callback for MIDI events. */
@@ -161,7 +161,7 @@ class PadGridView @JvmOverloads constructor(
     }
 
     fun setLedBrightnessPercent(percent: Int) {
-        effectBrightnessScale = percent.coerceIn(0, 200) / 100f
+        brightnessScale = percent.coerceIn(0, 200) / 100f
         scheduleRedraw()
     }
 
@@ -208,7 +208,7 @@ class PadGridView @JvmOverloads constructor(
                 edgeColors = edgeColors.copyOf(),
                 cornerTopRightColor = cornerTopRightColor,
                 padPressed = padPressed,
-                brightnessScale = effectBrightnessScale
+                brightnessScale = brightnessScale
             )
         }
     }

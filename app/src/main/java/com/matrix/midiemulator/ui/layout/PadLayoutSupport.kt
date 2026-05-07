@@ -118,7 +118,7 @@ internal abstract class BasePadLayout(
         if (brightnessScale >= 0.999f && brightnessScale <= 1.001f) return color
 
         val factor = if (brightnessScale <= 1f) {
-            0.18f + (brightnessScale * 0.82f)
+            1f // Don't dim effects/edge lights when brightness is lowered
         } else {
             1f + ((brightnessScale - 1f) * 0.20f).coerceAtMost(0.25f)
         }
@@ -133,7 +133,7 @@ internal abstract class BasePadLayout(
 
     protected fun scaledAlpha(baseAlpha: Int, brightnessScale: Float): Int {
         val factor = if (brightnessScale <= 1f) {
-            0.20f + (brightnessScale * 0.80f)
+            1f // Don't dim alpha of effects/edge lights when brightness is lowered
         } else {
             1f + ((brightnessScale - 1f) * 0.15f).coerceAtMost(0.20f)
         }
@@ -271,13 +271,18 @@ internal abstract class BasePadLayout(
         if (brightnessScale >= 0.999f && brightnessScale <= 1.001f) return color
 
         if (brightnessScale <= 1f) {
-            val factor = 0.22f + (brightnessScale * 0.78f)
-            return Color.argb(
-                Color.alpha(color),
-                (Color.red(color) * factor).toInt().coerceIn(0, 255),
-                (Color.green(color) * factor).toInt().coerceIn(0, 255),
-                (Color.blue(color) * factor).toInt().coerceIn(0, 255)
-            )
+            // Only dim if it's the unlit pad color
+            if (color == LedPalette.OFF_COLOR) {
+                val factor = 0.22f + (brightnessScale * 0.78f)
+                return Color.argb(
+                    Color.alpha(color),
+                    (Color.red(color) * factor).toInt().coerceIn(0, 255),
+                    (Color.green(color) * factor).toInt().coerceIn(0, 255),
+                    (Color.blue(color) * factor).toInt().coerceIn(0, 255)
+                )
+            } else {
+                return color // Effects on pads don't dim
+            }
         }
 
         val boost = (brightnessScale - 1f).coerceIn(0f, 1f)
