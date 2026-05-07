@@ -2,6 +2,11 @@ plugins {
     id("com.android.application")
 }
 
+val versionMajor = 1
+val versionMinor = 0
+val versionPatch = 6
+val versionBuild = 1 // Internal build number
+
 android {
     namespace = "com.matrix.midiemulator"
     compileSdk = 37
@@ -10,8 +15,8 @@ android {
         applicationId = "com.matrix.midiemulator"
         minSdk = 23
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.0.6"
+        versionCode = versionMajor * 10000 + versionMinor * 1000 + versionPatch * 100 + versionBuild
+        versionName = "$versionMajor.$versionMinor.$versionPatch"
     }
 
 
@@ -38,6 +43,7 @@ android {
 
         getByName("debug") {
             isMinifyEnabled = false
+            versionNameSuffix = "-debug"
         }
     }
 
