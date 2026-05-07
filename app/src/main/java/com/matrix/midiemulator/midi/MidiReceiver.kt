@@ -512,7 +512,7 @@ class MidiReceiver(
                                 val colors = paletteUploads.getOrPut(slotId) {
                                     IntArray(128) { LedPalette.OFF_COLOR }
                                 }
-                                colors[index] = LedPalette.sixBitToColor(r6, g6, b6)
+                                colors[index] = LedPalette.sixBitToRawColor(r6, g6, b6)
                             }
                             i += 4
                         }

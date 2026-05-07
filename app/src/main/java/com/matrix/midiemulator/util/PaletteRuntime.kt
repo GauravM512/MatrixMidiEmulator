@@ -36,6 +36,15 @@ object PaletteRuntime {
         )
     }
 
+    fun getRawColor(r6: Int, g6: Int, b6: Int): Int {
+        if (r6 == 0 && g6 == 0 && b6 == 0) return OFF_COLOR
+        return Color.rgb(
+            expand6bit(r6),
+            expand6bit(g6),
+            expand6bit(b6)
+        )
+    }
+
     fun snapshot(): IntArray {
         return activeColors.copyOf()
     }

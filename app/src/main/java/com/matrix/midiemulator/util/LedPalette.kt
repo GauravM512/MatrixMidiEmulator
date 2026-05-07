@@ -29,4 +29,12 @@ object LedPalette {
     fun sixBitToColor(r6: Int, g6: Int, b6: Int): Int {
         return PaletteRuntime.getDirectColor(r6, g6, b6)
     }
+
+    /**
+     * Convert 6-bit RGB to raw linear ARGB without gamma applied.
+     * Used for custom palette SysEx uploads.
+     */
+    fun sixBitToRawColor(r6: Int, g6: Int, b6: Int): Int {
+        return PaletteRuntime.getRawColor(r6, g6, b6)
+    }
 }
