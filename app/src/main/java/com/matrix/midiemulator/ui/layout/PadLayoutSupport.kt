@@ -164,11 +164,15 @@ internal abstract class BasePadLayout(
     }
 
     private fun drawPadBloom(canvas: Canvas, rawPadColor: Int, litPadColor: Int, brightnessScale: Float) {
-        if (brightnessScale <= 1f || rawPadColor == LedPalette.OFF_COLOR) return
+        if (rawPadColor == LedPalette.OFF_COLOR) return
 
-        val boost = (brightnessScale - 1f).coerceIn(0f, 1f)
+        // Always allow some subtle bloom for lit pads, even at low brightness,
+        // to prevent them from looking "flat".
+        val boost = if (brightnessScale > 1f) (brightnessScale - 1f).coerceIn(0f, 1f) else 0f
+        val baseBloomAlpha = if (brightnessScale <= 1f) (12 * brightnessScale).toInt() else 34
+        
         val bloomRadius = (maxOf(cellWidth, cellHeight) * (0.62f + boost * 0.75f)).coerceAtLeast(1f)
-        val bloomAlpha = (34 + boost * 104f).toInt().coerceIn(0, 255)
+        val bloomAlpha = (baseBloomAlpha + boost * 104f).toInt().coerceIn(0, 255)
         paint.shader = RadialGradient(
             padRect.centerX(),
             padRect.centerY(),
@@ -275,11 +279,12 @@ internal abstract class BasePadLayout(
             val g = Color.green(color)
             val b = Color.blue(color)
 
-            // Check if it's a "background" color (grayish)
-            // Vivid colors have high saturation and won't match this.
-            val isBackground = Math.abs(r - g) < 20 && Math.abs(g - b) < 20 && Math.abs(r - b) < 20
+            // Tighten the check: only dim if it's very close to gray AND within a specific luminosity range
+            // typical of the background pads. Lightshow colors even if grayish usually vary more.
+            val diff = maxOf(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b))
+            val isHardwareGray = diff < 12 && (r in 60..140)
 
-            if (isBackground || color == LedPalette.OFF_COLOR) {
+            if (isHardwareGray || color == LedPalette.OFF_COLOR) {
                 val factor = 0.22f + (brightnessScale * 0.78f)
                 return Color.argb(
                     Color.alpha(color),
@@ -288,7 +293,7 @@ internal abstract class BasePadLayout(
                     (b * factor).toInt().coerceIn(0, 255)
                 )
             } else {
-                return color // Vivid effect colors don't dim
+                return color // Lightshow colors stay at intended palette intensity
             }
         }
 
