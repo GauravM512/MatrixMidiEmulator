@@ -279,12 +279,18 @@ internal abstract class BasePadLayout(
             val g = Color.green(color)
             val b = Color.blue(color)
 
-            // Tighten the check: only dim if it's very close to gray AND within a specific luminosity range
-            // typical of the background pads. Lightshow colors even if grayish usually vary more.
             val diff = maxOf(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b))
-            val isHardwareGray = diff < 12 && (r in 60..140)
 
-            if (isHardwareGray || color == LedPalette.OFF_COLOR) {
+            // hardware grays:
+            // - pads: 128,128,128 (diff 0)
+            // - LP X edge: 119,119,119 (diff 0)
+            // - LP Pro edge: 122,128,136 (diff 14)
+            // - Corner buttons: 95,103,113 (diff 18)
+
+            // Wide enough to catch all hardware grays, narrow enough to miss most lightshow colors.
+            val isBackground = (diff < 20 && r in 50..160) || color == LedPalette.OFF_COLOR
+
+            if (isBackground) {
                 val factor = 0.22f + (brightnessScale * 0.78f)
                 return Color.argb(
                     Color.alpha(color),
