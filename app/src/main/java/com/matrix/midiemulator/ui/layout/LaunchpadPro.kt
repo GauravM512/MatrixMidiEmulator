@@ -84,7 +84,7 @@ internal class LaunchpadPro(
         if (edgeColor == LedPalette.OFF_COLOR) {
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = 2f * density
-            paint.color = 0xFF7A8088.toInt()
+            paint.color = applyPadBrightness(0xFF7A8088.toInt(), state.brightnessScale)
             canvas.drawCircle(cx, cy, edgeButtonRadius * 0.88f, paint)
         } else {
             val litColor = applyEffectBrightness(edgeColor, state.brightnessScale)
@@ -119,7 +119,7 @@ internal class LaunchpadPro(
         if (edgeColor == LedPalette.OFF_COLOR) {
             paint.shader = null
             paint.style = Paint.Style.FILL
-            paint.color = 0xFF5F6771.toInt()
+            paint.color = applyPadBrightness(0xFF5F6771.toInt(), state.brightnessScale)
             canvas.drawCircle(cx, cy, edgeButtonRadius * 0.80f, paint)
             return
         }

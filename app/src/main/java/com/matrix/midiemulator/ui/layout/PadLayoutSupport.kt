@@ -267,21 +267,28 @@ internal abstract class BasePadLayout(
         }
     }
 
-    private fun applyPadBrightness(color: Int, brightnessScale: Float): Int {
+    protected fun applyPadBrightness(color: Int, brightnessScale: Float): Int {
         if (brightnessScale >= 0.999f && brightnessScale <= 1.001f) return color
 
         if (brightnessScale <= 1f) {
-            // Only dim if it's the unlit pad color
-            if (color == LedPalette.OFF_COLOR) {
+            val r = Color.red(color)
+            val g = Color.green(color)
+            val b = Color.blue(color)
+
+            // Check if it's a "background" color (grayish)
+            // Vivid colors have high saturation and won't match this.
+            val isBackground = Math.abs(r - g) < 20 && Math.abs(g - b) < 20 && Math.abs(r - b) < 20
+
+            if (isBackground || color == LedPalette.OFF_COLOR) {
                 val factor = 0.22f + (brightnessScale * 0.78f)
                 return Color.argb(
                     Color.alpha(color),
-                    (Color.red(color) * factor).toInt().coerceIn(0, 255),
-                    (Color.green(color) * factor).toInt().coerceIn(0, 255),
-                    (Color.blue(color) * factor).toInt().coerceIn(0, 255)
+                    (r * factor).toInt().coerceIn(0, 255),
+                    (g * factor).toInt().coerceIn(0, 255),
+                    (b * factor).toInt().coerceIn(0, 255)
                 )
             } else {
-                return color // Effects on pads don't dim
+                return color // Vivid effect colors don't dim
             }
         }
 

@@ -74,11 +74,11 @@ internal class LaunchpadX(
 
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 1.2f * density
-        paint.color = if (edgeColor == LedPalette.OFF_COLOR) 0xFF777777.toInt() else withAlpha(litColor, 245)
+        paint.color = if (edgeColor == LedPalette.OFF_COLOR) applyPadBrightness(0xFF777777.toInt(), state.brightnessScale) else withAlpha(litColor, 245)
         canvas.drawRect(scratchRect, paint)
 
         if (note == 27) {
-            drawCornerButton(canvas, edgeColor, litColor)
+            drawCornerButton(canvas, edgeColor, litColor, state.brightnessScale)
         }
 
         if (state.padPressed[note]) {
@@ -89,16 +89,16 @@ internal class LaunchpadX(
         }
     }
 
-    private fun drawCornerButton(canvas: Canvas, edgeColor: Int, litColor: Int) {
+    private fun drawCornerButton(canvas: Canvas, edgeColor: Int, litColor: Int, brightnessScale: Float) {
         val innerRadius = edgeSize * 0.28f
         paint.style = if (edgeColor == LedPalette.OFF_COLOR) Paint.Style.STROKE else Paint.Style.FILL
         paint.strokeWidth = 1.5f * density
-        paint.color = if (edgeColor == LedPalette.OFF_COLOR) 0xFF5F6771.toInt() else withAlpha(litColor, 245)
+        paint.color = if (edgeColor == LedPalette.OFF_COLOR) applyPadBrightness(0xFF5F6771.toInt(), brightnessScale) else withAlpha(litColor, 245)
         canvas.drawCircle(scratchRect.centerX(), scratchRect.centerY(), innerRadius, paint)
 
         if (edgeColor == LedPalette.OFF_COLOR) {
             paint.style = Paint.Style.FILL
-            paint.color = 0xFF5F6771.toInt()
+            paint.color = applyPadBrightness(0xFF5F6771.toInt(), brightnessScale)
             canvas.drawCircle(scratchRect.centerX(), scratchRect.centerY(), innerRadius * 0.72f, paint)
         }
     }
