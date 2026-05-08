@@ -271,7 +271,7 @@ internal abstract class BasePadLayout(
         }
     }
 
-    protected fun applyPadBrightness(color: Int, brightnessScale: Float): Int {
+    protected fun applyPadBrightness(color: Int, brightnessScale: Float, isExplicitBackground: Boolean = false): Int {
         if (brightnessScale >= 0.999f && brightnessScale <= 1.001f) return color
 
         if (brightnessScale <= 1f) {
@@ -279,16 +279,7 @@ internal abstract class BasePadLayout(
             val g = Color.green(color)
             val b = Color.blue(color)
 
-            val diff = maxOf(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b))
-
-            // hardware grays:
-            // - pads: 128,128,128 (diff 0)
-            // - LP X edge: 119,119,119 (diff 0)
-            // - LP Pro edge: 122,128,136 (diff 14)
-            // - Corner buttons: 95,103,113 (diff 18)
-
-            // Wide enough to catch all hardware grays, narrow enough to miss most lightshow colors.
-            val isBackground = (diff < 20 && r in 50..160) || color == LedPalette.OFF_COLOR
+            val isBackground = isExplicitBackground || color == LedPalette.OFF_COLOR
 
             if (isBackground) {
                 val factor = 0.22f + (brightnessScale * 0.78f)
